@@ -37,103 +37,68 @@ DERIV_ACTIVATION_FUNCS = {
     "relu_d"    : np.vectorize(derivRelu),
 }
 
-# #Forward prop
-# #Initializing input and weight matrices randomly.
-# n = 10
-# input = np.random.rand(n, 2)
-# w1 = np.random.rand(2, n)
-# w2 = np.random.rand(n, 1)
-
-# #First hidden layer
-# p1 = np.matmul(input, w1)
-# a1 = sigmoid(p1)
-
-# #Softmax output layer
-# p2 = np.matmul(a1, w2)
-# a2 = softmax(p2)
-# z = a2
-
 class BasicANN:
     """BasicANN initializes a predefined artificial neural network. Architecture: WIP"""
-    def __init__(self) -> None:
-        self.hiddenLayers = []
-        self.__buildHiddenLayers()
+    def __init__(self, input: ndarray) -> None:
+        self.input = input
 
-        self.input = ndarray
-        self.weights     = []
-        self.pOutputs    = []
-        self.aOutputs    = []
-        self.activations = []
+        self.hiddenLayers = []
+        self.weights      = []
+        self.pOutputs     = []
+        self.aOutputs     = []
+        self.activations  = []
+
+        self.__buildHiddenLayers()
 
     def __buildHiddenLayers(self) -> None:
         #input is (10,2)
-        self.hiddenLayers.append(Layer(m=2, n=10, funcName="sigmoid"))
+        rows, columns = self.input.shape
+        self.hiddenLayers.append(Layer(m=2, n=rows, funcName="sigmoid"))
+        self.hiddenLayers.append(Layer(m=rows, n=1, funcName="sigmoid"))
 
-    #TODO: implement loop
-    def forwardPropagation(self, x: ndarray) -> ndarray:
-        self.input = x
+    def forwardPropagation(self) -> ndarray:
+        i = 0
+        a = self.input
+        for layer in self.hiddenLayers:
+            a = layer.forward(a)
 
-        layer = self.hiddenLayers[0]
-        a1 = layer.forward(x)
+            #Tracking every p, a, weight, and activation function
+            self.weights.append(layer.getWeights())
+            self.pOutputs.append(layer.getPOutputs())
+            self.aOutputs.append(a)
+            self.activations.append(layer.getActivationFunc())
 
-        #Tracking every p, a, weight, and activation function
-        self.weights.append(layer.getWeights())
-        self.pOutputs.append(layer.getPOutputs())
-        self.aOutputs.append(a1)
-        self.activations.append(layer.getActivationFunc())
-
-        # for layer in self.hiddenLayers:
-        #     output = layer.forward(prevLayerOutput)
-        #     prevLayerOutput = output 
-
-        return a1
+        return self.aOutputs[len(self.aOutputs) - 1] #return the output of the final layer
     
-    def backPropagation(self, z: ndarray, learnRate: float): #TODO: enforce proper dimensionality of z argument
+    #TODO:
+    #   -enforce proper dimensionality of z argument
+    #   -Add loop for partials
+    def backPropagation(self, z: ndarray, learnRate: float):
         zPredicted = self.aOutputs[len(self.aOutputs) - 1]
-        prevP = self.pOutputs[len(self.aOutputs) - 1]
+        p1 = self.pOutputs[len(self.aOutputs) - 2]
+        p2 = self.pOutputs[len(self.aOutputs) - 1]
+        prevWeight = self.weights[len(self.weights) - 1]
         prevActivation = self.activations[len(self.aOutputs) - 1]
         dPrevActivation = self.__getActivationDeriv(prevActivation)
 
-        dEdA = 2 * (zPredicted - z)
-        dAdP = DERIV_ACTIVATION_FUNCS[dPrevActivation](prevP) if dPrevActivation != "" else None
-        dPdW1 = self.input
+        #intermediate calculations
+        dEdP2 = np.matrix(2 * (zPredicted - z).flatten() * DERIV_ACTIVATION_FUNCS[dPrevActivation](p2).flatten()).T #TODO: add logic to handle activation function strings NOT in the dictionary
+        dEdA1 = dEdP2 @ prevWeight.T #one weight affects every single value in a row, hence matrix multiplication undoes it
+        dEdP1 = dEdA1 * DERIV_ACTIVATION_FUNCS[dPrevActivation](p1)
 
-        self.weights[len(self.weights) - 1] -= (learnRate * dEdA * dAdP * dPdW1)
+        #Calculating partials and updating weights
+        dEdW2 = (np.matrix(dEdP2).T @ self.aOutputs[0]).T #self.aOutputs[0] is a1
+        dEdW1 = (dEdP1 @ self.input).T #the math doesn't feel right, but the shape is. (2, 10)
+
+        self.weights[len(self.weights) - 1] -= (learnRate * dEdW2)
+        self.weights[len(self.weights) - 2] -= (learnRate * dEdW1)
+
+    def test(): pass
 
     def __getActivationDeriv(self, func) -> str: #func is a parameter of type function
         if (func.__name__ in ACTIVATION_FUNCS.keys()):
             return f"{func.__name__}_d"
         return ""
-
-class CustomANN:
-    """A basic class instantiating an artificial neural network."""
-    def __init__(self) -> None:
-        self.hiddenLayers = []
-        self.__buildHiddenLayers()
-
-        self.pOutputs = []
-        self.aOutputs = []
-        self.weights = []
-
-    def __buildHiddenLayers(self) -> None:
-        #input is (10,2)
-        self.hiddenLayers.append(Layer(m=2, n=10, funcName="sigmoid"))
-
-    #TODO: fix stub
-    def addLayer(): pass
-
-    #TODO: implement loop
-    def forwardPropagation(self, x: ndarray) -> ndarray:
-        a1 = self.hiddenLayers[0].forward(x) #a1 is the output
-        self.pOutputs.append(self.hiddenLayers[0].getPOutputs())
-        self.aOutputs.append(a1)
-        self.weights.append(self.hiddenLayers[0].getWeights())
-
-        # for layer in self.hiddenLayers:
-        #     output = layer.forward(prevLayerOutput)
-        #     prevLayerOutput = output 
-
-        return a1
     
 class Layer:
     """A Layer is a matrix with three properties: its dimensions n and m, and an activation function.
@@ -149,7 +114,8 @@ class Layer:
     """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
     function."""
     def forward(self, input: ndarray) -> ndarray:
-        self.p = np.matmul(input, self.weights)
+        #matrix multiplication
+        self.p = input @ self.weights
         self.a = self.activationFunc(self.p)
         return self.a
     
@@ -173,6 +139,6 @@ class Layer:
 #Initializing input and weight matrices randomly.
 n = 10
 input = np.random.rand(n, 2)
-a = BasicANN()
-print(a.forwardPropagation(input))
+a = BasicANN(input)
+a.forwardPropagation()
 a.backPropagation(np.random.rand(10, 1), 0.1)
