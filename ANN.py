@@ -37,6 +37,22 @@ DERIV_ACTIVATION_FUNCS = {
     "relu_d"    : np.vectorize(derivRelu),
 }
 
+# #Forward prop
+# #Initializing input and weight matrices randomly.
+# n = 10
+# input = np.random.rand(n, 2)
+# w1 = np.random.rand(2, n)
+# w2 = np.random.rand(n, 1)
+
+# #First hidden layer
+# p1 = np.matmul(input, w1)
+# a1 = sigmoid(p1)
+
+# #Softmax output layer
+# p2 = np.matmul(a1, w2)
+# a2 = softmax(p2)
+# z = a2
+
 class BasicANN:
     """BasicANN initializes a predefined artificial neural network. Architecture: WIP"""
     def __init__(self, input: ndarray) -> None:
@@ -135,10 +151,49 @@ class Layer:
     def getAOutputs(self) -> ndarray:
         return self.a
 
-#Forward prop
-#Initializing input and weight matrices randomly.
-n = 10
-input = np.random.rand(n, 2)
-a = BasicANN(input)
-a.forwardPropagation()
-a.backPropagation(np.random.rand(10, 1), 0.1)
+#Loading data from csv and loading into a numpy matrix
+import pandas as pd
+dataDF = pd.read_csv("training_data.csv")
+dataDF = dataDF.sample(frac=1).reset_index(drop=True)
+
+trainInputs = dataDF[["x", "y"][:8000]].to_numpy()
+trainOutputs = dataDF[["z"][:8000]].to_numpy()
+
+test = dataDF[["x", "y"][8000:10000]].to_numpy()
+
+a = BasicANN(trainInputs)
+epochs = 2
+out = None
+for i in range(epochs):
+    print(f"Epoch: {i + 1}")
+    out = a.forwardPropagation()
+    a.backPropagation(trainOutputs, 0.1)
+
+#TODO: RuntimeWarning: overflow encountered in exp return 1 / (1 + np.exp(-1 * mat))
+print(f"Inputs: {trainInputs}")
+print(f"Predicted: {out}")
+print(f"Actual: {trainOutputs}")
+
+"""
+Inputs: [[-2.46969032  0.80671884]
+ [-0.60288729  2.97312137]
+ [ 2.1566075   0.3883716 ]
+ ...
+ [ 0.7635504  -2.08764163]
+ [ 2.60893224  2.72482848]
+ [-0.04429144 -0.16631421]]
+Predicted: [[0.5]
+ [0.5]
+ [0. ]
+ ...
+ [0. ]
+ [0. ]
+ [0. ]]
+Actual: [[0.11664217]
+ [0.05343007]
+ [0.2168701 ]
+ ...
+ [0.20745291]
+ [0.01078135]
+ [0.99061529]]
+"""
