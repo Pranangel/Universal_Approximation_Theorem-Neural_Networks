@@ -1,9 +1,9 @@
 #Author: Pranangel
 #Purpose: Making the building blocks for a customizable artificial neural network.
 
+import math
 import numpy as np
 from numpy import ndarray, matrix
-import math
 
 def sigmoid(z: ndarray) -> ndarray:
     """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
@@ -77,15 +77,17 @@ class BasicANN:
     #Private method for automatic initialization
     def __buildHiddenLayers(self) -> None:
         rows, columns = self.input.shape
-        self.hiddenLayers.append(Layer(inputM=rows, inputN=columns, outputM=rows, outputN=rows, funcName="sigmoid"))
+        hl1Neurons = 5
+        self.hiddenLayers.append(Layer(inputM=rows, inputN=columns, neurons=hl1Neurons, funcName="sigmoid"))
+        
         h1M, h1N = self.hiddenLayers[0].getAOutputs().shape
-        self.hiddenLayers.append(Layer(inputM=h1M, inputN=h1N, outputM=rows, outputN=1, funcName="sigmoid"))
+        hl2Neurons = 1
+        self.hiddenLayers.append(Layer(inputM=h1M, inputN=h1N, neurons=hl2Neurons, funcName="sigmoid"))
 
     def forwardPropagation(self) -> ndarray:
         i = 0
         a = self.input
         for i in range(len(self.hiddenLayers)):
-            print(f"-----------------------Layer {i}-----------------------")
             layer = self.hiddenLayers[i]
             a = layer.forward(a)
 
@@ -105,40 +107,36 @@ class BasicANN:
         hl1 = self.hiddenLayers[0]
         hl2 = self.hiddenLayers[1]
 
-        print("Backpropagation:\n")
+        # print("Backpropagation:\n")
 
-        zPredicted = hl2.getAOutputs()
-
-        w2 = hl2.getWeights()
-        p2 = hl2.getPOutputs()
+        zPredicted       = hl2.getAOutputs()
+        w2               = hl2.getWeights()
+        p2               = hl2.getPOutputs()
         derivActivation2 = hl2.getActivationDeriv()
-
-        a1 = hl1.getAOutputs()
-        p1 = hl1.getPOutputs()
+        a1               = hl1.getAOutputs()
+        p1               = hl1.getPOutputs()
         derivActivation1 = hl1.getActivationDeriv()
 
+
         #intermediate calculations
-        #TODO: derivActivation2(p2) is producing zeroes because p2 has massive values >= 1000
-        dEdP2 = 2 * (zPredicted - z) * derivActivation2(p2) #shape (n,1)
-        print(p2)
-        print(derivActivation2(p2))
-        dEdA1 = dEdP2 @ w2.T
+        #TODO: derivActivation2(p2) is producing numbers close to zero because sigmoid??
+        dEdP2 = np.multiply(2 * (zPredicted - z), derivActivation2(p2))
+        dEdA1 = dEdP2 @ w2.T #Matrix multiplication undoes what the weights did to produce p2
         dEdP1 = np.multiply(dEdA1, derivActivation1(p1))
-        # dP2dP1 = w2.T @ derivActivation1(p1) #shape (1, n) * (n, n) = (1,n). Matrix multiplication undoes what the weights did to produce p
 
         #Calculating partials and updating weights
-        dEdW2 = a1 @ dEdP2 #shape(n,n) * (n,1) = (n,1)
-        dEdW1 = (dEdP1 @ self.input).T
-
+        dEdW2 = a1.T @ dEdP2 #shape(n,n) * (n,1) = (n,1)
+        dEdW1 = self.input.T @ dEdP1
         dEdB2 = dEdP2
         dEdB1 = dEdP1
+
         self.hiddenLayers[0].updateParameters(dEdW1, dEdB1, learnRate)
         self.hiddenLayers[1].updateParameters(dEdW2, dEdB2, learnRate)
 
     def test(): pass
     
 class Layer:
-    index = 0 #static variable to track the number of layers created, used for debugging purposes.
+    index = 0 #Static variable to track the number of layers created, used for debugging purposes.
 
     """
     A Layer is a matrix with three properties: its dimensions n and m, and an activation function.
@@ -150,18 +148,19 @@ class Layer:
     """
     
     #TODO: handle checking for valid shapes
-    """inputM and inputN are the dimensions of the inputted matrix, outputM and outputN are the dimensions of the outputted matrix."""
-    def __init__(self, inputM: int, inputN: int, outputM: int, outputN: int, funcName: str):
-        self.activationFunc  = ACTIVATION_FUNCS[funcName] #TODO: what if string is invalid?
-        self.activationDeriv = DERIV_ACTIVATION_FUNCS[f"{funcName}_d"] #TODO: what if string is invalid?
+    """inputM and inputN are the dimensions of the inputted matrix, neurons specify the number of columns in the output matrix."""
+    def __init__(self, inputM: int, inputN: int, neurons: int, funcName: str): #TODO: what if funcName is invalid?
+        self.activationFunc  = ACTIVATION_FUNCS[funcName]
+        self.activationDeriv = DERIV_ACTIVATION_FUNCS[f"{funcName}_d"]
         
-        self.weights = np.random.rand(inputN, outputN)
-        self.biases = np.random.rand(outputM, outputN)
+        self.weights = 10 * np.random.rand(inputN, neurons)
+        self.biases  = np.random.rand(inputM, neurons)
         
-        self.p = np.random.rand(outputM, outputN)
-        self.a = np.random.rand(outputM, outputN)
+        self.p = np.zeros((inputM, neurons))
+        self.a = np.zeros((inputM, neurons))
 
-        # Layer.index+=1
+        self.layerIndex = Layer.index
+        Layer.index += 1
 
     """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
     function."""
@@ -170,11 +169,17 @@ class Layer:
         #matrix multiplication
         self.p = input @ self.weights + self.biases
         self.a = self.activationFunc(self.p)
+
+        #Printing for debugging... or visualization?
+        if self.layerIndex == 0:
+            print("Beginning forward propagation...")
+        print(f"-----------------------Layer {self.layerIndex}-----------------------")
         print(f"input: {input}\n")
         print(f"weights: {self.weights}\n")
         print(f"biases: {self.biases}\n")
         print(f"p: {self.p}\n")
         print(f"a: {self.a}\n")
+
         return self.a
     
     """Backward propagation to update weights and biases."""
@@ -205,21 +210,20 @@ import pandas as pd
 dataDF = pd.read_csv("training_data.csv")
 dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-n = 8000  #Specify the number of rows to extract
+n = 8000 #Specify the number of rows to extract
 trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
 trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
 a = dataDF[["x", "y"]]
-# print(trainInputs)
 
 test = dataDF[["x", "y"]].iloc[n:].to_numpy()
 a = BasicANN(trainInputs)
-epochs = 1
-out = None
+epochs = 3
+# out = None
 for i in range(epochs):
     out = a.forwardPropagation()
     a.backPropagation(trainOutputs, 0.1)
 
-    # print(f"Epoch: {i + 1}")
-    # print(f"Inputs: {trainInputs}")
-    # print(f"Predicted: {out}")
-    # print(f"Actual: {trainOutputs}")
+    print(f"********************Epoch {i + 1} Results********************")
+    print(f"Inputs: {trainInputs}")
+    print(f"Predicted: {out}")
+    print(f"Actual: {trainOutputs}\n")
