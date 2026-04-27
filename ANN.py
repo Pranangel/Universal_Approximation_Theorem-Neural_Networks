@@ -9,24 +9,27 @@ def sigmoid(z: ndarray) -> ndarray:
     """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
     
     Algebraically, sigmoid is defined as 1 / (1 + e^-z). However, this implementation uses
-    (1 / 1 + sigmoid(z)) for z > 0 and sigmoid(z) / (1 + sigmoid(z)) for z < 0, avoiding overflow errors.
+    (1 / 1 + exp(-z)) for z > 0 and exp(z) / (1 + exp(z)) for z < 0, avoiding overflow errors.
 
     This method creates two masks of the inputted matrix, one for values > 0 and another for values <= 0.
-    The optimized version of the sigmoid is applied to each mask, and then both values are added together
-    and returned.
+    The optimized version of the sigmoid is applied to a result matrix with respect to the masks.
     
     (Source: https://blog.dailydoseofds.com/p/sigmoid-and-softmax-are-not-implemented)
     """
 
-    positiveMatrix = np.multiply(z > 0, z)
-    negativeMatrix = np.multiply(z < 0, z)
+    result = np.zeros_like(a=z, dtype=float)
+    #Boolean matrices contain 0s (false) or 1s (true).
+    positiveMask = z > 0  #Mask for values > 0
+    negativeMask = z <= 0 #Mask for values <= 0
 
-    positiveMatrix = np.exp(-1 * positiveMatrix)
+    #The masks are being used inside brackets to have the function apply only to values with true.
+    a = np.exp(-1 * z[positiveMask])
+    result[positiveMask] = 1 / (1 + a)
 
-    a = np.exp(negativeMatrix)
-    negativeMatrix = a / (a + 1)
+    a = np.exp(z[negativeMask])
+    result[negativeMask] = a / (a + 1)
     
-    return positiveMatrix + negativeMatrix
+    return result
 
 def derivSigmoid(z: ndarray) -> ndarray:
     a = sigmoid(z)
@@ -61,6 +64,7 @@ class BasicANN:
     def __init__(self, input: ndarray) -> None:
         self.input = input
 
+        #TODO: store in dictionary?
         self.hiddenLayers = []
         self.weights      = []
         self.biases       = []
@@ -70,6 +74,7 @@ class BasicANN:
 
         self.__buildHiddenLayers()
 
+    #Private method for automatic initialization
     def __buildHiddenLayers(self) -> None:
         rows, columns = self.input.shape
         self.hiddenLayers.append(Layer(inputM=rows, inputN=columns, outputM=rows, outputN=rows, funcName="sigmoid"))
@@ -77,9 +82,11 @@ class BasicANN:
         self.hiddenLayers.append(Layer(inputM=h1M, inputN=h1N, outputM=rows, outputN=1, funcName="sigmoid"))
 
     def forwardPropagation(self) -> ndarray:
-        # i = 0
+        i = 0
         a = self.input
-        for layer in self.hiddenLayers:
+        for i in range(len(self.hiddenLayers)):
+            print(f"-----------------------Layer {i}-----------------------")
+            layer = self.hiddenLayers[i]
             a = layer.forward(a)
 
             #Tracking every p, a, weight, and activation function
@@ -98,6 +105,8 @@ class BasicANN:
         hl1 = self.hiddenLayers[0]
         hl2 = self.hiddenLayers[1]
 
+        print("Backpropagation:\n")
+
         zPredicted = hl2.getAOutputs()
 
         w2 = hl2.getWeights()
@@ -109,27 +118,28 @@ class BasicANN:
         derivActivation1 = hl1.getActivationDeriv()
 
         #intermediate calculations
-        #TODO:
-            #dEdP2, dEdA1, dEdP1 combine np.matrix and ndarray with questionable transposes and broadcasting
-        print(hl2.getActivationFunc()(p2))
+        #TODO: derivActivation2(p2) is producing zeroes because p2 has massive values >= 1000
+        dEdP2 = 2 * (zPredicted - z) * derivActivation2(p2) #shape (n,1)
+        print(p2)
         print(derivActivation2(p2))
-        dEdP2 = np.matrix(2 * (zPredicted - z).flatten() * derivActivation2(p2).flatten()).T #TODO: add logic to handle activation function strings NOT in the dictionary
-        dEdA1 = dEdP2 @ w2.T #one weight affects every single value in a row, hence matrix multiplication undoes it
-        dEdP1 = dEdA1 * derivActivation1(p1)
-        dP2dP1 = w2.T
+        dEdA1 = dEdP2 @ w2.T
+        dEdP1 = np.multiply(dEdA1, derivActivation1(p1))
+        # dP2dP1 = w2.T @ derivActivation1(p1) #shape (1, n) * (n, n) = (1,n). Matrix multiplication undoes what the weights did to produce p
 
         #Calculating partials and updating weights
-        dEdW2 = (np.matrix(dEdP2).T @ a1).T
-        dEdW1 = (dEdP1 @ self.input).T #the math doesn't feel right, but the shape is. (2, 10)
+        dEdW2 = a1 @ dEdP2 #shape(n,n) * (n,1) = (n,1)
+        dEdW1 = (dEdP1 @ self.input).T
 
-        self.hiddenLayers[0].updateParameters(dEdW1, 0, learnRate) #TODO: add code to handle bias updates
-        self.hiddenLayers[1].updateParameters(dEdW2, 0, learnRate)
-        # self.weights[len(self.weights) - 1] -= (learnRate * dEdW2)
-        # self.weights[len(self.weights) - 2] -= (learnRate * dEdW1)
+        dEdB2 = dEdP2
+        dEdB1 = dEdP1
+        self.hiddenLayers[0].updateParameters(dEdW1, dEdB1, learnRate)
+        self.hiddenLayers[1].updateParameters(dEdW2, dEdB2, learnRate)
 
     def test(): pass
     
 class Layer:
+    index = 0 #static variable to track the number of layers created, used for debugging purposes.
+
     """
     A Layer is a matrix with three properties: its dimensions n and m, and an activation function.
     Terminology: the p ('product') matrix is the product between the previous layer and weights, the a
@@ -151,13 +161,20 @@ class Layer:
         self.p = np.random.rand(outputM, outputN)
         self.a = np.random.rand(outputM, outputN)
 
+        # Layer.index+=1
+
     """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
     function."""
     #Optimization: Fix: implement mini-batching or process per-sample; ensure shapes reflect (batch_size, features).
     def forward(self, input: ndarray) -> ndarray:
         #matrix multiplication
-        self.p = input @ self.weights
+        self.p = input @ self.weights + self.biases
         self.a = self.activationFunc(self.p)
+        print(f"input: {input}\n")
+        print(f"weights: {self.weights}\n")
+        print(f"biases: {self.biases}\n")
+        print(f"p: {self.p}\n")
+        print(f"a: {self.a}\n")
         return self.a
     
     """Backward propagation to update weights and biases."""
@@ -188,200 +205,21 @@ import pandas as pd
 dataDF = pd.read_csv("training_data.csv")
 dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-trainInputs = dataDF[["x", "y"][:8000]].to_numpy()
-trainOutputs = dataDF[["z"][:8000]].to_numpy()
+n = 8000  #Specify the number of rows to extract
+trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
+trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
+a = dataDF[["x", "y"]]
+# print(trainInputs)
 
-test = dataDF[["x", "y"][8000:10000]].to_numpy()
-
+test = dataDF[["x", "y"]].iloc[n:].to_numpy()
 a = BasicANN(trainInputs)
 epochs = 1
 out = None
 for i in range(epochs):
-    print(f"Epoch: {i + 1}")
     out = a.forwardPropagation()
     a.backPropagation(trainOutputs, 0.1)
-    print(f"Inputs: {trainInputs}")
-    print(f"Predicted: {out}")
-    print(f"Actual: {trainOutputs}")
 
-"""TEST 1 (No learning occurring, need to pinpoint bugs and optimizations):
-Epoch: 1
-Inputs: [[-2.50320799 -1.10966418]
- [-0.56200661  2.59808924]
- [ 2.95085971 -0.61225634]
- ...
- [-2.95008035 -1.02161336]
- [ 1.81982744 -2.92119976]
- [ 2.39158146  2.68269902]]
-Predicted: [[1.]
- [1.]
- [1.]
- ...
- [1.]
- [1.]
- [1.]]
-Actual: [[0.09195113]
- [0.10548865]
- [0.05551914]
- ...
- [0.04493848]
- [0.02304197]
- [0.01638382]]
-Epoch: 2
-Inputs: [[-2.50320799 -1.10966418]
- [-0.56200661  2.59808924]
- [ 2.95085971 -0.61225634]
- ...
- [-2.95008035 -1.02161336]
- [ 1.81982744 -2.92119976]
- [ 2.39158146  2.68269902]]
-Predicted: [[1.]
- [1.]
- [1.]
- ...
- [1.]
- [1.]
- [1.]]
-Actual: [[0.09195113]
- [0.10548865]
- [0.05551914]
- ...
- [0.04493848]
- [0.02304197]
- [0.01638382]]
-Epoch: 3
-Inputs: [[-2.50320799 -1.10966418]
- [-0.56200661  2.59808924]
- [ 2.95085971 -0.61225634]
- ...
- [-2.95008035 -1.02161336]
- [ 1.81982744 -2.92119976]
- [ 2.39158146  2.68269902]]
-Predicted: [[1.]
- [1.]
- [1.]
- ...
- [1.]
- [1.]
- [1.]]
-Actual: [[0.09195113]
- [0.10548865]
- [0.05551914]
- ...
- [0.04493848]
- [0.02304197]
- [0.01638382]]
-"""
-
-""" TEST 2 (with activation function performance issues fixed, but still no learning occurring)
-Epoch: 1
-Inputs: [[-1.73834293  1.40594045]
- [-1.88318461 -1.76845482]
- [ 1.35340949 -0.339626  ]
- ...
- [ 0.73734285 -2.72708075]
- [-2.74829266 -0.96171274]
- [-1.73682907  1.57032535]]
-Predicted: [[0.5]
- [0.5]
- [0.5]
- ...
- [0.5]
- [0.5]
- [0.5]]
-Actual: [[0.20370682]
- [0.1195116 ]
- [0.53806849]
- ...
- [0.07884134]
- [0.06729748]
- [0.17462177]]
-Epoch: 2
-Inputs: [[-1.73834293  1.40594045]
- [-1.88318461 -1.76845482]
- [ 1.35340949 -0.339626  ]
- ...
- [ 0.73734285 -2.72708075]
- [-2.74829266 -0.96171274]
- [-1.73682907  1.57032535]]
-Predicted: [[0.5]
- [0.5]
- [0.5]
- ...
- [0.5]
- [0.5]
- [0.5]]
-Actual: [[0.20370682]
- [0.1195116 ]
- [0.53806849]
- ...
- [0.07884134]
- [0.06729748]
- [0.17462177]]
-Epoch: 3
-Inputs: [[-1.73834293  1.40594045]
- [-1.88318461 -1.76845482]
- [ 1.35340949 -0.339626  ]
- ...
- [ 0.73734285 -2.72708075]
- [-2.74829266 -0.96171274]
- [-1.73682907  1.57032535]]
-Predicted: [[0.5]
- [0.5]
- [0.5]
- ...
- [0.5]
- [0.5]
- [0.5]]
-Actual: [[0.20370682]
- [0.1195116 ]
- [0.53806849]
- ...
- [0.07884134]
- [0.06729748]
- [0.17462177]]
-Epoch: 4
-Inputs: [[-1.73834293  1.40594045]
- [-1.88318461 -1.76845482]
- [ 1.35340949 -0.339626  ]
- ...
- [ 0.73734285 -2.72708075]
- [-2.74829266 -0.96171274]
- [-1.73682907  1.57032535]]
-Predicted: [[0.5]
- [0.5]
- [0.5]
- ...
- [0.5]
- [0.5]
- [0.5]]
-Actual: [[0.20370682]
- [0.1195116 ]
- [0.53806849]
- ...
- [0.07884134]
- [0.06729748]
- [0.17462177]]
-Epoch: 5
-Inputs: [[-1.73834293  1.40594045]
- [-1.88318461 -1.76845482]
- [ 1.35340949 -0.339626  ]
- ...
- [ 0.73734285 -2.72708075]
- [-2.74829266 -0.96171274]
- [-1.73682907  1.57032535]]
-Predicted: [[0.5]
- [0.5]
- [0.5]
- ...
- [0.5]
- [0.5]
- [0.5]]
-Actual: [[0.20370682]
- [0.1195116 ]
- [0.53806849]
- ...
- [0.07884134]
- [0.06729748]
- [0.17462177]]
-"""
+    # print(f"Epoch: {i + 1}")
+    # print(f"Inputs: {trainInputs}")
+    # print(f"Predicted: {out}")
+    # print(f"Actual: {trainOutputs}")
