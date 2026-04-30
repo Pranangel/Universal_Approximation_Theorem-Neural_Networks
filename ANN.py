@@ -1,9 +1,8 @@
 #Author: Pranangel
 #Purpose: Making the building blocks for a customizable artificial neural network.
 
-import math
 import numpy as np
-from numpy import ndarray, matrix
+from numpy import ndarray
 
 def sigmoid(z: ndarray) -> ndarray:
     """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
@@ -51,7 +50,7 @@ def softmax(mat: ndarray) -> ndarray:
 ACTIVATION_FUNCS = {
     "sigmoid" : sigmoid,
     "relu"    : relu,
-    "softmax" : softmax
+    #"softmax" : softmax
 }
 
 DERIV_ACTIVATION_FUNCS = {
@@ -59,36 +58,96 @@ DERIV_ACTIVATION_FUNCS = {
     "relu_d"    : derivRelu,
 }
 
+def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    return (predicted - actual) ** 2
+
+def derivSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    return 2 * (predicted - actual)
+
+def meanSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    m1, n1 = predicted.shape #TODO: check for same-size shape
+    m2, n2 = actual.shape
+
+    return squaredError(predicted, actual) / n1
+
+def derivMeanSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    m1, n1 = predicted.shape #TODO: check for same-size shape
+    m2, n2 = actual.shape
+
+    return (2 / n1) * (predicted - actual)
+
+def meanAbsError(predicted: ndarray, actual: ndarray) -> ndarray:
+    m1, n1 = predicted.shape #TODO: check for same-size shape
+    m2, n2 = actual.shape
+
+    return np.abs(predicted - actual)  / n1
+
+def derivMeanAbsError(predicted: ndarray, actual: ndarray) -> ndarray:
+    m1, n1 = predicted.shape #TODO: check for same-size shape
+    m2, n2 = actual.shape
+
+    diff = predicted - actual
+    copy = np.ones((m1, m2))
+
+    if (diff > 0):
+        return copy * (1 / n1)
+    elif (diff < 0):
+        return copy * (-1 / n1)
+    return copy * 0
+
+ERROR_FUNCS = {
+    "SE"  : squaredError,
+    "MSE" : meanSquaredError,
+    "MAE" : meanAbsError
+}
+
+DERIV_ERROR_FUNCS = {
+    "SE_d"  : derivSquaredError,
+    "MSE_d" : derivMeanSquaredError,
+    "MAE_d" : derivMeanAbsError
+}
+
 class BasicANN:
-    """BasicANN initializes a predefined artificial neural network. Architecture: WIP"""
+    """
+    BasicANN initializes a predefined artificial neural network. This model expects (x,y) pairs
+    (matrix of shape n, 2) and produces a z-value for each pair (matrix of shape n, 1).
+    
+    Architecture:
+    1st layer: 1 neuron with sigmoid activation
+    2nd/output layer: 1 neuron with sigmoid activation
+    Loss function: Mean Squared Error
+    """
+
+    #Future improvement: Add input preprocessing for CNNs?
     def __init__(self, input: ndarray) -> None:
         self.input = input
+        self.error: ndarray
 
         #TODO: store in dictionary?
-        self.hiddenLayers = []
+        self.layers       = []
         self.weights      = []
         self.biases       = []
         self.pOutputs     = []
         self.aOutputs     = []
         self.activations  = []
 
-        self.__buildHiddenLayers()
+        self.__buildLayers()
 
     #Private method for automatic initialization
-    def __buildHiddenLayers(self) -> None:
+    def __buildLayers(self) -> None:
         rows, columns = self.input.shape
-        hl1Neurons = 5
-        self.hiddenLayers.append(Layer(inputM=rows, inputN=columns, neurons=hl1Neurons, funcName="sigmoid"))
+        neuronsL1 = 1
+        self.layers.append(Layer(inputM=rows, inputN=columns, neurons=neuronsL1, funcName="sigmoid"))
         
-        h1M, h1N = self.hiddenLayers[0].getAOutputs().shape
-        hl2Neurons = 1
-        self.hiddenLayers.append(Layer(inputM=h1M, inputN=h1N, neurons=hl2Neurons, funcName="sigmoid"))
+        mH1, nH1 = self.layers[0].getAOutputs().shape
+        neuronsL2 = 1
+        self.layers.append(Layer(inputM=mH1, inputN=nH1, neurons=neuronsL2, funcName="sigmoid"))
 
     def forwardPropagation(self) -> ndarray:
         i = 0
         a = self.input
-        for i in range(len(self.hiddenLayers)):
-            layer = self.hiddenLayers[i]
+        for i in range(len(self.layers)):
+            layer = self.layers[i]
             a = layer.forward(a)
 
             #Tracking every p, a, weight, and activation function
@@ -103,24 +162,26 @@ class BasicANN:
     #TODO:
     #   -enforce proper dimensionality of z argument
     #   -Add loop for partials
-    def backPropagation(self, z: ndarray, learnRate: float):
-        hl1 = self.hiddenLayers[0]
-        hl2 = self.hiddenLayers[1]
+    #   -Check valid lossFunc string
+    def backPropagation(self, z: ndarray, learnRate: float, lossFuncName: str):
+        l1 = self.layers[0]
+        l2 = self.layers[1]
 
         # print("Backpropagation:\n")
 
-        zPredicted       = hl2.getAOutputs()
-        w2               = hl2.getWeights()
-        p2               = hl2.getPOutputs()
-        derivActivation2 = hl2.getActivationDeriv()
-        a1               = hl1.getAOutputs()
-        p1               = hl1.getPOutputs()
-        derivActivation1 = hl1.getActivationDeriv()
+        zPredicted       = l2.getAOutputs()
+        w2               = l2.getWeights()
+        p2               = l2.getPOutputs()
+        derivActivation2 = l2.getActivationDeriv()
+        a1               = l1.getAOutputs()
+        p1               = l1.getPOutputs()
+        derivActivation1 = l1.getActivationDeriv()
 
+        self.error = ERROR_FUNCS[lossFuncName](zPredicted, z)
+        dEdZ = DERIV_ERROR_FUNCS[f"{lossFuncName}_d"](zPredicted, z)
 
         #intermediate calculations
-        #TODO: derivActivation2(p2) is producing numbers close to zero because sigmoid??
-        dEdP2 = np.multiply(2 * (zPredicted - z), derivActivation2(p2))
+        dEdP2 = np.multiply(dEdZ, derivActivation2(p2))
         dEdA1 = dEdP2 @ w2.T #Matrix multiplication undoes what the weights did to produce p2
         dEdP1 = np.multiply(dEdA1, derivActivation1(p1))
 
@@ -130,11 +191,35 @@ class BasicANN:
         dEdB2 = dEdP2
         dEdB1 = dEdP1
 
-        self.hiddenLayers[0].updateParameters(dEdW1, dEdB1, learnRate)
-        self.hiddenLayers[1].updateParameters(dEdW2, dEdB2, learnRate)
+        self.layers[0].updateParameters(dEdW1, dEdB1, learnRate)
+        self.layers[1].updateParameters(dEdW2, dEdB2, learnRate)
 
-    def test(): pass
-    
+    def getError(self) -> ndarray:
+        return self.error
+
+    def train(self, z: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False):
+        for i in range(epochs):
+            out = self.forwardPropagation()
+            self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
+
+            if (displayOutputs):
+                print(f"********************Epoch {i + 1} Results********************")
+                # print(f"Inputs: {trainInputs}")
+                # print(f"Predicted: {out}")
+                # print(f"Actual: {trainOutputs}")
+                print(f"Residuals: {out - z}")
+                print(f"Error: {self.getError()}\n")
+
+    def test(self, testInput: ndarray, displayPredictions=False) -> ndarray:
+        self.input = testInput #TODO: This will cause issues during model re-training
+        a = self.forwardPropagation()
+
+        if (displayPredictions):
+            print(f"Inputs: {testInput}")
+            print(f"Predicted: {a}")
+        
+        return a
+
 class Layer:
     index = 0 #Static variable to track the number of layers created, used for debugging purposes.
 
@@ -143,8 +228,8 @@ class Layer:
     Terminology: the p ('product') matrix is the product between the previous layer and weights, the a
     ('activation') matrix is the p matrix that has an activation function applied to it.
     
-    A Layer should know the shape of the inputted matrix, the expected shape of the outputted matrix,
-    and the activation function the programmer intends to use.
+    A Layer expects the shape of the inputted matrix, the neurons/columns that will be stored,
+    and the activation function's name.
     """
     
     #TODO: handle checking for valid shapes
@@ -153,7 +238,7 @@ class Layer:
         self.activationFunc  = ACTIVATION_FUNCS[funcName]
         self.activationDeriv = DERIV_ACTIVATION_FUNCS[f"{funcName}_d"]
         
-        self.weights = 10 * np.random.rand(inputN, neurons)
+        self.weights = np.random.rand(inputN, neurons)
         self.biases  = np.random.rand(inputM, neurons)
         
         self.p = np.zeros((inputM, neurons))
@@ -164,21 +249,21 @@ class Layer:
 
     """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
     function."""
-    #Optimization: Fix: implement mini-batching or process per-sample; ensure shapes reflect (batch_size, features).
-    def forward(self, input: ndarray) -> ndarray:
+    #TODO: implement mini-batching or process per-sample; ensure shapes reflect (batch_size, features).
+    def forward(self, input: ndarray, displayParams = False) -> ndarray:
         #matrix multiplication
         self.p = input @ self.weights + self.biases
         self.a = self.activationFunc(self.p)
 
-        #Printing for debugging... or visualization?
-        if self.layerIndex == 0:
-            print("Beginning forward propagation...")
-        print(f"-----------------------Layer {self.layerIndex}-----------------------")
-        print(f"input: {input}\n")
-        print(f"weights: {self.weights}\n")
-        print(f"biases: {self.biases}\n")
-        print(f"p: {self.p}\n")
-        print(f"a: {self.a}\n")
+        if (displayParams):
+            if self.layerIndex == 0:
+                print("Beginning forward propagation...")
+            print(f"-----------------------Layer {self.layerIndex}-----------------------")
+            print(f"input: {input}\n")
+            print(f"weights: {self.weights}\n")
+            print(f"biases: {self.biases}\n")
+            print(f"p: {self.p}\n")
+            print(f"a: {self.a}\n")
 
         return self.a
     
@@ -210,20 +295,16 @@ import pandas as pd
 dataDF = pd.read_csv("training_data.csv")
 dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-n = 8000 #Specify the number of rows to extract
+n = 5000 #Specify the number of rows to extract
 trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
 trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
-a = dataDF[["x", "y"]]
 
-test = dataDF[["x", "y"]].iloc[n:].to_numpy()
-a = BasicANN(trainInputs)
-epochs = 3
-# out = None
-for i in range(epochs):
-    out = a.forwardPropagation()
-    a.backPropagation(trainOutputs, 0.1)
+model = BasicANN(trainInputs)
+#TODO: add visualization to training data
+#TODO: generate non-normalized data and compare results to normalized data
+model.train(z=trainOutputs, learnRate=0.001, epochs=1000, lossFuncName="MSE")
 
-    print(f"********************Epoch {i + 1} Results********************")
-    print(f"Inputs: {trainInputs}")
-    print(f"Predicted: {out}")
-    print(f"Actual: {trainOutputs}\n")
+#Testing
+# test = dataDF[["x", "y"]].iloc[n:].to_numpy()
+# a.test(testInput=test, displayPredictions=True)
+# print(f"Actual: {dataDF[["z"]].iloc[n:].to_numpy()}") #cheating
