@@ -4,6 +4,9 @@
 import numpy as np
 from numpy import ndarray
 
+class Activations: #TODO
+    def __init__(self): pass
+
 def sigmoid(z: ndarray) -> ndarray:
     """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
     
@@ -38,7 +41,11 @@ def relu(x: ndarray) -> ndarray:
     return np.maximum(0, x)
 
 def derivRelu(x: ndarray) -> ndarray:
-    return np.ones_like(x) if x > 0 else np.zeros_like(x)
+    positiveMask = x > 0
+    result = np.zeros_like(a=x, shape=x.shape)
+    result[positiveMask] = 1
+
+    return result
 
 def softmax(mat: ndarray) -> ndarray:
     """Takes a matrix as an argument and calculates a probability distribution 
@@ -113,7 +120,7 @@ class BasicANN:
     (matrix of shape n, 2) and produces a z-value for each pair (matrix of shape n, 1).
     
     Architecture:
-    1st layer: 1 neuron with sigmoid activation
+    1st layer: 1 neuron with ReLU activation
     2nd/output layer: 1 neuron with sigmoid activation
     Loss function: Mean Squared Error
     """
@@ -132,16 +139,43 @@ class BasicANN:
         self.activations  = []
 
         self.__buildLayers()
+        
+    # def __init__(self, input: ndarray, numLayers: int, numNeurons: list[int], activations: list[str]) -> None:
+    #     self.input = input
+    #     self.error: ndarray
+
+    #     #TODO: store in dictionary?
+    #     self.layers       = []
+    #     self.weights      = []
+    #     self.biases       = []
+    #     self.pOutputs     = []
+    #     self.aOutputs     = []
+    #     self.activations  = []
+
+    #     self.addLayers(self.input, numLayers, numNeurons, activations)
 
     #Private method for automatic initialization
     def __buildLayers(self) -> None:
         rows, columns = self.input.shape
         neuronsL1 = 1
-        self.layers.append(Layer(inputM=rows, inputN=columns, neurons=neuronsL1, funcName="sigmoid"))
+        self.layers.append(Layer(inputM=rows, inputN=columns, neurons=neuronsL1, funcName="relu"))
         
         mH1, nH1 = self.layers[0].getAOutputs().shape
         neuronsL2 = 1
         self.layers.append(Layer(inputM=mH1, inputN=nH1, neurons=neuronsL2, funcName="sigmoid"))
+
+    # def addLayers(self, input: ndarray, numLayers: int, numNeurons: list[int], activations: list[str]) -> None:
+    #     if (numLayers == len(numNeurons)) and (numLayers == len(activations)):
+    #         for l in range(numLayers):
+    #             if (len(self.layers) == 0): #If there are no layers, build starting w/ input
+    #                 rows, columns = input.shape
+    #                 self.layers.append(Layer(inputM=rows, inputN=columns, neurons=numNeurons[0], funcName=activations[0]))
+    #                 continue
+    #             if l >= 1:
+    #                 i = l + len(self.layers) - 1
+    #                 m, n = self.layers[i].getAOutputs().shape
+    #                 self.layers.append(Layer(inputM=m, inputN=n, neurons=numNeurons[i], funcName=activations[i]))
+    #     #FIXME: layer is at index 0 (size 1). i - 1 = -1, which breaks
 
     def forwardPropagation(self) -> ndarray:
         i = 0
@@ -197,17 +231,23 @@ class BasicANN:
     def getError(self) -> ndarray:
         return self.error
 
+    """
+    Batch gradient descent.
+
+    If this was stochastic, it would take the whole training dataset and inside of the epoch loop,
+    there would be another loop that does forward and backward for each point in the dataset
+    """
     def train(self, z: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False):
         for i in range(epochs):
-            out = self.forwardPropagation()
+            a = self.forwardPropagation()
             self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
 
             if (displayOutputs):
                 print(f"********************Epoch {i + 1} Results********************")
-                # print(f"Inputs: {trainInputs}")
-                # print(f"Predicted: {out}")
-                # print(f"Actual: {trainOutputs}")
-                print(f"Residuals: {out - z}")
+                print(f"Inputs: {self.input}")
+                print(f"Predicted: {a}")
+                print(f"Actual: {z}")
+                print(f"Residuals: {a - z}")
                 print(f"Error: {self.getError()}\n")
 
     def test(self, testInput: ndarray, displayPredictions=False) -> ndarray:
@@ -289,22 +329,27 @@ class Layer:
     
     def getAOutputs(self) -> ndarray:
         return self.a
+    
+if "__name__" == "__main__":
+    #Loading data from csv and loading into a numpy matrix
+    import pandas as pd
+    dataDF = pd.read_csv("training_data.csv")
+    dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-#Loading data from csv and loading into a numpy matrix
-import pandas as pd
-dataDF = pd.read_csv("training_data.csv")
-dataDF = dataDF.sample(frac=1).reset_index(drop=True)
+    n = 5000 #Specify the number of rows to extract for training and testing
+    trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
+    trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
 
-n = 5000 #Specify the number of rows to extract
-trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
-trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
+    model = BasicANN(trainInputs)
+    #TODO: generate non-normalized data and compare results to normalized data
+    model.train(z=trainOutputs, learnRate=0.1, epochs=1, lossFuncName="MSE", displayOutputs=True)
 
-model = BasicANN(trainInputs)
-#TODO: add visualization to training data
-#TODO: generate non-normalized data and compare results to normalized data
-model.train(z=trainOutputs, learnRate=0.001, epochs=1000, lossFuncName="MSE")
+    #TODO: add visualization to training and testing
+    # from mpl_toolkits.mplot3d import Axes3D
+    # import matplotlib.pyplot as plt
 
-#Testing
-# test = dataDF[["x", "y"]].iloc[n:].to_numpy()
-# a.test(testInput=test, displayPredictions=True)
-# print(f"Actual: {dataDF[["z"]].iloc[n:].to_numpy()}") #cheating
+    #Testing
+    print("---------------------------------TESTING---------------------------------")
+    test = dataDF[["x", "y"]].iloc[n:].to_numpy()
+    predictions = model.test(testInput=test, displayPredictions=True)
+    print(f"Actual: {dataDF[["z"]].iloc[n:].to_numpy()}") #cheating
