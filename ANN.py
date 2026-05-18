@@ -1,9 +1,7 @@
 #Author: Pranangel
 #Purpose: Making the building blocks for a customizable artificial neural network.
 
-#Author: Pranangel
-#Purpose: Making the building blocks for a customizable artificial neural network.
-
+#https://medium.com/analytics-vidhya/activation-functions-optimization-techniques-and-loss-functions-75a0eea0bc31
 import numpy as np
 from numpy import ndarray
 
@@ -73,6 +71,8 @@ DERIV_ACTIVATION_FUNCS = {
     "relu_d"    : derivRelu,
 }
 
+#TODO: log cosh loss
+
 def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
     return (predicted - actual) ** 2
 
@@ -119,35 +119,37 @@ DERIV_ERROR_FUNCS = {
     # "MAE_d" : derivMeanAbsError
 }
 
+class Activation: 
+
+    def __init__(self):
+        pass
+
+class Loss: pass
+
+class Model: pass
+
+class Trainer: pass
+
+class Tester: pass
+
 class BasicANN:
     """
     BasicANN initializes a predefined artificial neural network. This model expects (x,y) pairs
     (matrix of shape n, 2) and produces a z-value for each pair (matrix of shape n, 1).
     
     Default architecture:
-    1st layer: 1 neuron with ReLU activation
+    1st layer: 1 neuron with sigmoid activation
     2nd/output layer: 1 neuron with sigmoid activation
     Loss function: Mean Squared Error
     """
-
-    #Future improvement: Add input preprocessing for CNNs?
-    # def __init__(self, input: ndarray) -> None:
-    #     self.input = input
-    #     self.error: ndarray
-
-    #     #TODO: store in dictionary?
-    #     self.layers       = []
-    #     self.weights      = []
-    #     self.biases       = []
-    #     self.pOutputs     = []
-    #     self.aOutputs     = []
-    #     self.activations  = []
-
-    #     self.__buildLayers()
     
     #TODO: If the programmer wants to build their own, they must pass ALL OF numLayers, numNeurons, AND activations.
-    def __init__(self, input: ndarray, numLayers=2, numNeurons=[1, 1], activations=["sigmoid", "relu"]) -> None:
-        self.input = input
+    def __init__(self, numFeatures: int, batchSize=None, numLayers=2, numNeurons=[1, 1], activations=["sigmoid", "sigmoid"]) -> None:
+        if (batchSize == None): batchSize = 32 #FIXME
+        
+        self.features  = numFeatures
+        self.batchSize = batchSize
+        self.input: ndarray
         self.error: ndarray
 
         #TODO: store in dictionary?
@@ -158,35 +160,26 @@ class BasicANN:
         self.aOutputs     = []
         self.activations  = []
 
-        self.addLayers(self.input, numLayers, numNeurons, activations)
+        self.addLayers(numLayers, numNeurons, activations)
 
-    #Private method for automatic initialization (deprecated)
-    # def __buildLayers(self) -> None:
-    #     rows, columns = self.input.shape
-    #     neuronsL1 = 1
-    #     self.layers.append(Layer(inputM=rows, inputN=columns, neurons=neuronsL1, funcName="relu"))
-        
-    #     mH1, nH1 = self.layers[0].getAOutputs().shape
-    #     neuronsL2 = 1
-    #     self.layers.append(Layer(inputM=mH1, inputN=nH1, neurons=neuronsL2, funcName="sigmoid"))
-
-    def addLayers(self, input: ndarray, numLayers: int, neuronsPerLayer: list[int], activationsPerLayer: list[str]) -> None:
+    def addLayers(self, numLayers: int, neuronsPerLayer: list[int], activationsPerLayer: list[str]) -> None:
         if (numLayers == len(neuronsPerLayer)) and (numLayers == len(activationsPerLayer)):
             m, n = 0, 0
-            i = -1
             for l in range(numLayers):
                 if (len(self.layers) == 0 and l == 0): #If there are no layers, build starting w/ input
-                    i = 0
-                    m, n = input.shape
+                    m = self.batchSize
+                    n = self.features
                 else:
-                    i = l - 1
-                    m, n = self.layers[i].getAOutputs().shape
+                    m, n = self.layers[l - 1].getAOutputs().shape
 
-                self.layers.append(Layer(inputM=m, inputN=n, neurons=neuronsPerLayer[i], funcName=activationsPerLayer[i]))
+                self.layers.append(Layer(inputM=m, inputN=n, neurons=neuronsPerLayer[l], funcName=activationsPerLayer[l]))
 
-    def forwardPropagation(self) -> ndarray:
+    #TODO
+    # def clear(): pass
+
+    def forwardPropagation(self, input: ndarray) -> ndarray:
         i = 0
-        a = self.input
+        a = input
         for i in range(len(self.layers)):
             layer = self.layers[i]
             a = layer.forward(a)
@@ -203,76 +196,47 @@ class BasicANN:
     #TODO:
     #   -enforce proper dimensionality of z argument
     #   -Check valid lossFunc string
-    def backPropagation(self, z: ndarray, learnRate: float, lossFuncName: str):
-        l1 = self.layers[0]
-        l2 = self.layers[1]
-
-        # print("Backpropagation:\n")
-
-        zPredicted       = l2.getAOutputs()
-        w2               = l2.getWeights()
-        p2               = l2.getPOutputs()
-        derivActivation2 = l2.getActivationDeriv()
-        a1               = l1.getAOutputs()
-        p1               = l1.getPOutputs()
-        derivActivation1 = l1.getActivationDeriv()
-
-        self.error = ERROR_FUNCS[lossFuncName](zPredicted, z)
-        dEdZ = DERIV_ERROR_FUNCS[f"{lossFuncName}_d"](zPredicted, z)
-
-        #intermediate calculations
-        dEdP2 = np.multiply(dEdZ, derivActivation2(p2))
-        dEdA1 = dEdP2 @ w2.T #Matrix multiplication undoes what the weights did to produce p2
-        dEdP1 = np.multiply(dEdA1, derivActivation1(p1))
-
-        #Calculating partials and updating weights
-        dEdW2 = a1.T @ dEdP2 #shape(n,n) * (n,1) = (n,1)
-        dEdW1 = self.input.T @ dEdP1
-        dEdB2 = np.sum(dEdP2, axis=0, keepdims=True) #TODO: update by mean instead of sum
-        dEdB1 = np.sum(dEdP1, axis=0, keepdims=True)
-
-        self.layers[0].updateParameters(dEdW1, dEdB1, learnRate)
-        self.layers[1].updateParameters(dEdW2, dEdB2, learnRate)
+    def backPropagation(self, input: ndarray, z: ndarray, learnRate: float, lossFuncName: str):
+        self.__backPropagation(input, z, learnRate, lossFuncName)
 
     #TODO
-    # def __backPropagation(self, z: ndarray, learnRate: float, lossFuncName: str):
-    #     for i in reversed(range(len(self.layers))):
-    #         layer = self.layers[i]
+    def __backPropagation(self, input: ndarray, z: ndarray, learnRate: float, lossFuncName: str):
+        """Uses a rolling variable to track gradients. Every current layer updates the gradient,
+        and the layers higher up the chain will reuse this gradient, updating it for each
+        pass backwards towards the input layer.
+        """
+        last = len(self.layers) - 1
+        zPredicted = self.layers[last].getAOutputs()
+        self.error = ERROR_FUNCS[lossFuncName](zPredicted, z) #FIXME: should self.error be an instance member at all?
+        dEdZPredicted = DERIV_ERROR_FUNCS[f"{lossFuncName}_d"](zPredicted, z)
+        gradient = np.zeros(input.shape)
 
-    #         # print("Backpropagation:\n")
+        for i in reversed(range(last)):
+            layer = self.layers[i]
 
-    #         zPredicted       = l2.getAOutputs()
-    #         w2               = l2.getWeights()
-    #         p2               = l2.getPOutputs()
-    #         derivActivation2 = l2.getActivationDeriv()
+            p = layer.getPOutputs()
+            actFunc = layer.getActivationDeriv()
+            a = input.T
+            if (i != 0):
+                a = self.layers[i - 1].getAOutputs().T #rolling gradient does NOT get updated with a
 
-    #         a1               = l1.getAOutputs()
-    #         p1               = l1.getPOutputs()
-    #         derivActivation1 = l1.getActivationDeriv()
+            if (i == 0):
+                gradient = np.multiply(dEdZPredicted, actFunc(p))
+            else:
+                dPdAPrev = self.layers[i + 1].getWeights().T
+                dAPrevdPPrev = actFunc(p)
+                gradient = np.multiply(gradient @ dPdAPrev, dAPrevdPPrev) #(gradient @ dPdAPrev) * dAPrevdPPrev
 
-    #         self.error = ERROR_FUNCS[lossFuncName](zPredicted, z)
-    #         dEdZ = DERIV_ERROR_FUNCS[f"{lossFuncName}_d"](zPredicted, z)
-
-    #         #intermediate calculations
-    #         dEdP2 = np.multiply(dEdZ, derivActivation2(p2))
-    #         dEdA1 = dEdP2 @ w2.T #Matrix multiplication undoes what the weights did to produce p2
-    #         dEdP1 = np.multiply(dEdA1, derivActivation1(p1))
-
-    #         #Calculating partials and updating weights
-    #         dEdW2 = a1.T @ dEdP2 #shape(n,n) * (n,1) = (n,1)
-    #         dEdW1 = self.input.T @ dEdP1
-    #         dEdB2 = np.sum(dEdP2, axis=0, keepdims=True) #TODO: update by mean instead of sum
-    #         dEdB1 = np.sum(dEdP1, axis=0, keepdims=True)
-
-    #         self.layers[0].updateParameters(dEdW1, dEdB1, learnRate)
-    #         self.layers[1].updateParameters(dEdW2, dEdB2, learnRate)
+            dEdW = a @ gradient
+            dEdB = np.sum(gradient, axis=0, keepdims=True) #TODO: update by mean instead of sum
+            self.layers[i].updateParameters(dEdW, dEdB, learnRate)
 
     def getError(self) -> ndarray:
         return self.error
 
-    def __display(self, epoch: int, predicted: ndarray, actual: ndarray):
-        print(f"********************Epoch {epoch} Results********************")
-        print(f"Inputs: {self.input}")
+    def __display(self, epoch: int, batchNum: int, predicted: ndarray, actual: ndarray):
+        """Prints training results: epoch, predicted, actual, residuals, and error."""
+        print(f"********************Epoch {epoch}, Batch {batchNum} Results********************")
         print(f"Predicted: {predicted}")
         print(f"Actual: {actual}")
         print(f"Residuals: {predicted - actual}")
@@ -287,54 +251,20 @@ class BasicANN:
     If this was stochastic, it would take the whole training dataset and inside of the epoch loop,
     there would be another loop that does forward and backward for each point in the dataset
     """
-    #FIXME: delete duplicate code for saving to file
     #FIXME: safe file writing
-    def train(self, z: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False, saveFile = ""):
-        if (displayOutputs):
-            for i in range(epochs):
-                a = self.forwardPropagation()
-                self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
-                self.__display(i + 1, a, z)
-
-        #TODO: What if an error happens during forward or back prop?
-        elif (displayOutputs and saveFile != "" and saveFile != None):
-            with open(saveFile, "a") as f:
-                for i in range(epochs):
-                    a = self.forwardPropagation()
-                    self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
-                    self.__display(i + 1, a, z)
-
-                    np.savetxt(f, self.input, "%d", ",", header="Inputs")
-                    np.savetxt(f, a, "%d", ",", header="Predicted")
-                    np.savetxt(f, z, "%d", ",", header="Actual")
-                    np.savetxt(f, a - z, "%d", ",", header="Residuals")
-                    np.savetxt(f, self.getError(), "%d", ",", newline="--------------", header="Error")
-
-                f.close()
-
-        #TODO: What if an error happens during forward or back prop?
-        elif ((not displayOutputs) and saveFile != "" and saveFile != None):
-            with open(saveFile, "a") as f:
-                for i in range(epochs):
-                    a = self.forwardPropagation()
-                    self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
-
-                    np.savetxt(f, self.input, "%d", ",", header="Inputs")
-                    np.savetxt(f, a, "%d", ",", header="Predicted")
-                    np.savetxt(f, z, "%d", ",", header="Actual")
-                    np.savetxt(f, a - z, "%d", ",", header="Residuals")
-                    np.savetxt(f, self.getError(), "%d", ",", newline="--------------", header="Error")
-
-                f.close()
+    def train(self, input: ndarray, z: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False, saveFile = ""):
+        samples, _ = input.shape
         
-        else:
-            for i in range(epochs):
-                a = self.forwardPropagation()
-                self.backPropagation(z=z, learnRate=learnRate, lossFuncName=lossFuncName)
+        for i in range(epochs):
+            for j in range(0, samples, self.batchSize):
+                inputBatch = input[j:j+self.batchSize] #TODO: Does numpy fill 0s for <32 features?
+                predBatch  = z[j:j+self.batchSize]
+                a = self.forwardPropagation(inputBatch)
+                self.backPropagation(input=inputBatch, z=predBatch, learnRate=learnRate, lossFuncName=lossFuncName)
+                self.__display(i + 1, round(j / self.batchSize) + 1, a, predBatch)
 
     def test(self, testInput: ndarray, displayPredictions=False, saveFile = "", testOutput = None) -> ndarray:
-        self.input = testInput #FIXME: This will cause issues during model re-training
-        a = self.forwardPropagation()
+        a = self.forwardPropagation(testInput)
 
         if (displayPredictions):
             print("-------------------------------TESTING-------------------------------")
@@ -429,27 +359,25 @@ class Layer:
     
     def getAOutputs(self) -> ndarray:
         return self.a
-    
-if "__name__" == "__main__":    
-    #Loading data from csv and loading into a numpy matrix
-    import pandas as pd
-    dataDF = pd.read_csv("training_data.csv")
-    dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-    n = 5000 #Specify the number of rows to extract for training and testing
-    trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
-    trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
+#Loading data from csv and loading into a numpy matrix
+import pandas as pd
+dataDF = pd.read_csv("training_data.csv")
+dataDF = dataDF.sample(frac=1).reset_index(drop=True)
 
-    model1 = BasicANN(trainInputs)
-    #TODO: generate non-normalized data and compare results to normalized data
-    model1.train(z=trainOutputs, learnRate=0.1, epochs=1, lossFuncName="MSE", displayOutputs=True)
+n = 3200 #Specify the number of rows to extract for training and testing
+trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
+trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
 
-    #TODO: add visualization to training and testing
-    # from mpl_toolkits.mplot3d import Axes3D
-    # import matplotlib.pyplot as plt
+model1 = BasicANN(numFeatures=2, batchSize=64, numLayers=2, numNeurons=[10, 1], activations=["sigmoid", "relu"])
+#TODO: generate non-normalized data and compare results to normalized data
+model1.train(input=trainInputs, z=trainOutputs, learnRate=0.1, epochs=100, lossFuncName="MSE", displayOutputs=True)
 
-    #Testing
-    print("---------------------------------TESTING---------------------------------")
-    test = dataDF[["x", "y"]].iloc[n:].to_numpy()
-    predictions = model1.test(testInput=test, displayPredictions=True)
-    print(f"Actual: {dataDF[["z"]].iloc[n:].to_numpy()}") #cheating
+#TODO: add visualization to training and testing
+# from mpl_toolkits.mplot3d import Axes3D
+# import matplotlib.pyplot as plt
+
+#Testing
+test = dataDF[["x", "y"]].iloc[n:5001].to_numpy()
+predictions = model1.test(testInput=test, displayPredictions=True)
+print(f"Actual: {dataDF[["z"]].iloc[n:5001].to_numpy()}") #cheating
