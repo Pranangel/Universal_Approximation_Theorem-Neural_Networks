@@ -9,14 +9,19 @@ class ErrorFunction(Function):
     pass
 
 class SquaredError(ErrorFunction):
+    @staticmethod
+    def getFunc():
+        return squaredError
 
     @staticmethod
-    def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
-        return (predicted - actual) ** 2
+    def getDeriv():
+        return derivSquaredError
 
-    @staticmethod
-    def derivSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
-        return 2 * (predicted - actual)
+def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    return (predicted - actual) ** 2
+
+def derivSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+    return 2 * (predicted - actual)
 
 class MeanSquaredError(ErrorFunction):
     @staticmethod
