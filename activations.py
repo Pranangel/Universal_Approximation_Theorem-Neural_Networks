@@ -48,7 +48,7 @@ def derivSigmoid(z: ndarray) -> ndarray:
     a = sigmoid(z)
     return a * (1 - a)
 
-class ReLU:
+class ReLU(ActivationFunction):
     @staticmethod
     def getFunc():
         return relu
@@ -66,6 +66,10 @@ def derivRelu(x: ndarray) -> ndarray:
     result[positiveMask] = 1
 
     return result
+
+#TODO
+class GeLU:
+    pass
 
 #FIXME
 # def softmax(mat: ndarray) -> ndarray:
