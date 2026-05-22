@@ -4,8 +4,6 @@
 import numpy as np
 from numpy import ndarray
 
-class Loss: pass
-
 class Model: pass
 
 class Trainer: pass
@@ -82,32 +80,36 @@ class BasicANN:
         and the layers higher up the chain will reuse this gradient, updating it for each
         pass backwards towards the input layer.
         """
-        last = len(self.layers) - 1
-        zPredicted = self.layers[last].getAOutputs()
+        start = len(self.layers)
+        zPredicted = self.layers[start - 1].getAOutputs()
         #FIXME: Some functions may return a float instead of ndarray
         self.error = errorFunc.getFunc()(zPredicted, z) #FIXME: should self.error be an instance member at all?
         dEdZPredicted = errorFunc.getDeriv()(zPredicted, z)
         gradient = np.zeros(input.shape)
 
-        for i in reversed(range(last)):
+        for i in reversed(range(start)):
+            # print(f"Layer {i}")
+
             layer = self.layers[i]
-
             p = layer.getPOutputs()
-            actFunc = layer.getActivation().getDeriv()
-            a = input.T
-            if (i != 0):
-                a = self.layers[i - 1].getAOutputs().T #rolling gradient does NOT get updated with a
+            actDeriv = layer.getActivation().getDeriv()
 
-            if (i == 0):
-                gradient = np.multiply(dEdZPredicted, actFunc(p))
+            if (i == start - 1): #Initializing gradient
+                gradient = np.multiply(dEdZPredicted, actDeriv(p))
             else:
                 dPdAPrev = self.layers[i + 1].getWeights().T
-                dAPrevdPPrev = actFunc(p)
+                pPrev = self.layers[i - 1].getPOutputs()
+                dAPrevdPPrev = actDeriv(pPrev)
                 gradient = np.multiply(gradient @ dPdAPrev, dAPrevdPPrev) #(gradient @ dPdAPrev) * dAPrevdPPrev
+
+            #Initializing current layer's a value. Note that the rolling gradient does NOT get updated with a
+            a = input.T
+            if (i != 0):
+                a = self.layers[i - 1].getAOutputs().T
 
             dEdW = a @ gradient
             dEdB = np.sum(gradient, axis=0, keepdims=True) #TODO: update by mean instead of sum
-            self.layers[i].updateParameters(dEdW, dEdB, learnRate)
+            layer.updateParameters(dEdW, dEdB, learnRate)
 
     def getError(self) -> ndarray:
         return self.error
@@ -123,10 +125,7 @@ class BasicANN:
     # def __saveTo():
     #     pass
 
-    """
-    Batch gradient descent.
-    """
-    # If this was stochastic, it would take the whole training dataset and inside of the epoch loop,
+    # If this was stochastic descent, it would take the whole training dataset and inside of the epoch loop,
     # there would be another loop that does forward and backward for each point in the dataset
     #FIXME: safe file writing
     def train(self, input: ndarray, z: ndarray, learnRate: float, epochs: int, errorFunc: ErrorFunction, displayOutputs = False, saveFile = ""):
@@ -138,7 +137,8 @@ class BasicANN:
                 predBatch  = z[j:j+self.batchSize]
                 a = self.forwardPropagation(inputBatch)
                 self.backPropagation(input=inputBatch, z=predBatch, learnRate=learnRate, errorFunc=errorFunc)
-                self.__display(i + 1, round(j / self.batchSize) + 1, a, predBatch)
+                if displayOutputs:
+                    self.__display(i + 1, round(j / self.batchSize) + 1, a, predBatch)
 
     def test(self, testInput: ndarray, displayPredictions=False, saveFile = "", testOutput = None) -> ndarray:
         a = self.forwardPropagation(testInput)
@@ -165,25 +165,33 @@ class BasicANN:
         
         return a
 
-"""
-A Layer is a matrix with three properties: its dimensions n and m, and an activation function.
-Terminology: the p ('product') matrix is the product between the previous layer and weights, the a
-('activation') matrix is the p matrix that has an activation function applied to it.
-
-A Layer expects the shape of the inputted matrix, the neurons/columns that will be stored,
-and the activation function's name.
-"""
 class Layer:
+    """
+    A Layer is a matrix with three properties: its dimensions n and m, and an activation function.
+    Terminology: the p ('product') matrix is the matrix multiplication product between the previous
+    layer and weights; the a ('activation') matrix is the p matrix that has an activation function
+    applied to it.
+
+    A Layer expects the shape of the inputted matrix, the neurons/columns that will be stored,
+    and the activation function's name.
+
+    inputM and inputN are the dimensions of the inputted matrix; neurons specify the number of columns
+    in the output matrix.
+    """
     index = 0 #Static variable to track the number of layers created, used for debugging purposes.
+    rng = np.random.default_rng(seed=1) #Static random number generator
 
     #TODO: handle checking for valid shapes
-    """inputM and inputN are the dimensions of the inputted matrix, neurons specify the number of columns in the output matrix."""
-    def __init__(self, inputM: int, inputN: int, neurons: int, activation: ActivationFunction): #TODO: what if funcName is invalid?
-        self.activation      = activation
-        
+    def __init__(self, inputM: int, inputN: int, neurons: int, activation: ActivationFunction):
+        self.activation = activation
+
+        #Is this valid type checking if parameter expects an ActivationFunction?
         #TODO: Xavier/Glorot initialization for sigmoid, He initialization for ReLU
-        self.weights = np.random.rand(inputN, neurons)
-        self.biases  = np.random.rand(1, neurons)
+        if (type(self.activation) == Sigmoid()): pass
+        if (type(self.activation) == ReLU()): pass
+
+        self.weights = Layer.rng.random((inputN, neurons))
+        self.biases  = Layer.rng.random((1, neurons))
         
         #FIXME: Layer size should be independent of batch size
         self.p = np.zeros((inputM, neurons))
@@ -192,10 +200,10 @@ class Layer:
         self.layerIndex = Layer.index
         Layer.index += 1
 
-    """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
-    function."""
     #TODO: ensure shapes reflect (batch_size, features).
     def forward(self, input: ndarray, displayParams = False) -> ndarray:
+        """Forward propagation algorithm: returns a numpy array of matrix multiplication and an applied activation
+        function."""
         #matrix multiplication
         self.p = input @ self.weights + self.biases
         self.a = self.activation.getFunc()(self.p)
@@ -212,8 +220,8 @@ class Layer:
 
         return self.a
     
-    """Backward propagation to update weights and biases."""
     def updateParameters(self, dw: ndarray, db: ndarray, learnRate: int):
+        """Backward propagation to update weights and biases."""
         self.weights -= dw * learnRate
         self.biases -= db * learnRate
 
@@ -232,24 +240,36 @@ class Layer:
     def getAOutputs(self) -> ndarray:
         return self.a
     
-#Loading data from csv and loading into a numpy matrix
-import pandas as pd
-dataDF = pd.read_csv("training_data.csv")
-dataDF = dataDF.sample(frac=1).reset_index(drop=True)
+if __name__ == "__main__":
+    import pandas as pd
+    
+    #Ingestion
+    filename = "training_data_1.csv"
+    dataDF = pd.read_csv(filename) #Loading data from csv and loading into a numpy matrix
+    dataDF = dataDF.sample(frac=1, random_state=1).reset_index(drop=True)
 
-n = 10 #Specify the number of rows to extract for training and testing
-trainInputs = dataDF[["x", "y"]].iloc[:n].to_numpy()
-trainOutputs = dataDF[["z"]].iloc[:n].to_numpy()
+    m = 10 #Specify the number of rows to extract for training and testing
+    trainInputs = dataDF[["x", "y"]].iloc[:m].to_numpy()
+    trainOutputs = dataDF[["z"]].iloc[:m].to_numpy()
 
-#TODO: generate non-normalized data and compare results to normalized data
-model1 = BasicANN(numFeatures=2, batchSize=2, numLayers=2, numNeurons=[10, 1], activations=[Sigmoid(), Sigmoid()])
-model1.train(input=trainInputs, z=trainOutputs, learnRate=0.1, epochs=10, errorFunc=MeanSquaredError(), displayOutputs=True)
+    #Initialization
+    f = 2
+    b = 10
+    l = 2
+    n = [1, 1]
+    a = [] #FIXME
+    a.append(ReLU())
+    a.append(ReLU())
+    model1 = BasicANN(numFeatures=f, batchSize=b, numLayers=l, numNeurons=n, activations=a)
 
-#TODO: add visualization to training and testing
-# from mpl_toolkits.mplot3d import Axes3D
-# import matplotlib.pyplot as plt
+    #Training
+    print("****************************NON-NORMALIZED DATA****************************")
+    r = 0.1
+    e = 10
+    model1.train(input=trainInputs, z=trainOutputs, learnRate=r, epochs=e, errorFunc=MeanSquaredError(), displayOutputs=True)
 
-#Testing
-test = dataDF[["x", "y"]].iloc[n:5001].to_numpy()
-predictions = model1.test(testInput=test, displayPredictions=True)
-print(f"Actual: {dataDF[["z"]].iloc[n:5001].to_numpy()}") #cheating
+    #Testing
+    samples = 10
+    test = dataDF[["x", "y"]].iloc[m:m+samples].to_numpy()
+    predictions = model1.test(testInput=test, displayPredictions=True)
+    print(f"Actual: {dataDF[["z"]].iloc[m:m+samples].to_numpy()}") #cheating
