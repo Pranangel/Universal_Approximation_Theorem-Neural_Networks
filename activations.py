@@ -3,13 +3,22 @@
 
 import numpy as np
 from numpy import ndarray
-from Function import Function
+from abstract_function import Function
 
 #https://medium.com/analytics-vidhya/activation-functions-optimization-techniques-and-loss-functions-75a0eea0bc31
 class ActivationFunction(Function):
+    """
+    Wrapper class for all activations. Currently supports:
+
+    
+        -Sigmoid
+        -ReLU
+        -Identity
+    """
     pass
 
 class Sigmoid(ActivationFunction):
+
     @staticmethod
     def getFunc():
         return sigmoid
@@ -18,10 +27,11 @@ class Sigmoid(ActivationFunction):
     def getDeriv():
         return derivSigmoid
     
+    
 def sigmoid(z: ndarray) -> ndarray:
     """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
     
-    Algebraically, sigmoid is defined as 1 / (1 + e^-z). However, this implementation uses
+    Algebraically, sigmoid is defined as 1 / (1 + exp(-z)). However, this implementation uses
     (1 / 1 + exp(-z)) for z > 0 and exp(z) / (1 + exp(z)) for z < 0, avoiding overflow errors.
 
     This method creates two masks of the inputted matrix, one for values > 0 and another for values <= 0.
@@ -68,8 +78,23 @@ def derivRelu(x: ndarray) -> ndarray:
     return result
 
 #TODO
-class GeLU:
-    pass
+# class GeLU:
+#     pass
+
+class Identity(ActivationFunction):
+    @staticmethod
+    def getFunc():
+        return identity
+
+    @staticmethod
+    def getDeriv():
+        return derivIdentity
+
+def identity(x: ndarray) -> ndarray:
+    return x
+
+def derivIdentity(x: ndarray) -> ndarray:
+    return np.ones(x.shape)
 
 #FIXME
 # def softmax(mat: ndarray) -> ndarray:
