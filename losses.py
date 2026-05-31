@@ -5,7 +5,7 @@ import numpy as np
 from numpy import ndarray
 from abstract_function import Function
 
-class ErrorFunction(Function):
+class LossFunction(Function):
     """
     Wrapper class for all losses. Currently supports:
 
@@ -19,7 +19,7 @@ class ErrorFunction(Function):
     """
     pass
 
-class SquaredError(ErrorFunction):
+class SquaredError(LossFunction):
     @staticmethod
     def getFunc():
         return squaredError
@@ -34,7 +34,7 @@ def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
 def derivSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
     return 2 * (predicted - actual)
 
-class MeanSquaredError(ErrorFunction):
+class MeanSquaredError(LossFunction):
     @staticmethod
     def getFunc():
         return meanSquaredError
@@ -50,7 +50,7 @@ def meanSquaredError(predicted: ndarray, actual: ndarray): #TODO: outputs floati
 def derivMeanSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
     return 2 * (predicted - actual) / predicted.size
 
-class PerOutputMSE(ErrorFunction):
+class PerOutputMSE(LossFunction):
     """
     Column-wise mean squared error. This class expects that matrix rows represent
     samples and columns represent neurons; returns one MSE value per output.
@@ -71,7 +71,7 @@ def derivPerOutputMSE(predicted: ndarray, actual: ndarray) -> ndarray:
     samples, neurons = actual.shape
     return 2 * (predicted - actual) / samples
 
-class PerSampleMSE(ErrorFunction):
+class PerSampleMSE(LossFunction):
     """
     Row-wise mean squared error. This class expects that matrix rows represent
     samples and columns represent neurons; returns one MSE value per sample.
@@ -92,7 +92,7 @@ def derivPerSampleMSE(predicted: ndarray, actual: ndarray) -> ndarray:
     samples, neurons = actual.shape
     return 2 * (predicted - actual) / neurons
 
-class MeanAbsoluteError(ErrorFunction):
+class MeanAbsoluteError(LossFunction):
 
     @staticmethod
     def getFunc():
