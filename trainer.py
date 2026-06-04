@@ -66,58 +66,72 @@ def undoLinearScaling(data: ndarray, predictions: ndarray) -> ndarray:
 
 #Ingestion
 filename = "training_data.csv"
-dataDF = pd.read_csv(filename) #Loading data from csv and loading into a numpy matrix
-shuffledDF = dataDF.sample(frac=1, random_state=1).reset_index(drop=True)
+dataDF = pd.read_csv(filename)
+
+#Shuffling Pandas DataFrame and preparing training DataFrame
 datasetSize = 10000
-samples     = 5000 #Number of rows to extract for training and testing
+samples     = datasetSize #Number of rows to extract for training
+shuffledDF = dataDF.sample(frac=1, random_state=1).reset_index(drop=True)
+trainDF    = shuffledDF[:samples]
 
-trainDF = shuffledDF[:samples]
-testDF  = shuffledDF[samples:]
-
+#Scaling data
 scaledTrainData = linearScaling(trainDF)
-scaledTestData  = linearScaling(testDF)
-
 trainInputs  = scaledTrainData[:, [0, 1]]
 trainOutputs = scaledTrainData[:, 2].reshape(samples, 1)
-testInputs   = scaledTestData[:, [0, 1]]
-testOutputs  = scaledTestData[:, 2].reshape(datasetSize - samples, 1)
 
-#Model init args
-feat    = 2
-batch   = 32
-layers  = 2
-neurons = [1, 1]
-acts:   list[ActivationFunction]
-acts    = [ReLU(), Identity()]
+modelInitArgs = {
+    "input_features": 2,
+    "batch_size": samples,
+    "output_features": [100, 100, 1],
+    "activations": [ReLU(), ReLU(), Identity()],
+}
 
-#Training args
-lr      = 0.1
-epochs  = 2
-err     = MeanSquaredError()
-displayTrain = True
-displayTest  = False
-saving       = False
+trainingArgs = {
+    "learn_rate": 0.001,
+    "epochs": 1000, #This will take a few minutes...
+    "error": MeanSquaredError(),
+}
 
-#Initializing ANN with args and training on normalized data with training args
-model = ANN(numFeatures=feat, batchSize=batch, numLayers=layers, numNeurons=neurons, activations=acts)
-model.train(input=trainInputs, z=trainOutputs, learnRate=lr, epochs=epochs, lossFunc=err, displayOutputs=displayTrain)
+displayTrain = False
 
-#Merging training results with input data
-predictions = model.test(testInput=trainInputs, displayPredictions=displayTrain)
-x = trainInputs[:, 0].reshape(samples, 1) #Convert array of shape (samples,) to matrix of shape (samples, 1)
-y = trainInputs[:, 1].reshape(samples, 1)
-xy       = np.concatenate((x, y), axis=1) #Concatenate by appending columns (left to right)
-xyz      = np.concatenate((xy, predictions), axis=1).reshape(samples, 3)
+#Initializing ANN with args
+model = ANN(
+    input_features=modelInitArgs["input_features"],
+    batch_size=modelInitArgs["batch_size"],
+    output_features=modelInitArgs["output_features"],
+    activations=modelInitArgs["activations"]
+)
 
-unscaled = undoLinearScaling(data=trainDF.to_numpy(), predictions=xyz)
-#Save training results as csv
-if saving:
-    saveFilename = "results.csv"
-    predsDF = pd.DataFrame(unscaled)
-    predsDF = predsDF.rename(columns={0: "x", 1: "y", 2: "z"})
-    pd.DataFrame.to_csv(predsDF, saveFilename, index=False)
+#Training on normalized data with training args
+losses = model.train(
+    input=trainInputs,
+    expected=trainOutputs,
+    learnRate=trainingArgs["learn_rate"],
+    epochs=trainingArgs["epochs"],
+    lossFunc=trainingArgs["error"],
+    displayOutputs=displayTrain
+)
 
-#Testing
-# predictions = model.test(testInput=testInputs, displayPredictions=displayTest)
-# print(f"Predicted: {predictions}")
-# print(f"Actual: {testOutputs}")
+print(losses)
+#Output:
+#[444.82411016635035, 18.79291585742752, 7.782951097453164, 4.1175494653478175,
+# 2.4689846131450217, 1.6601361979866782, 1.181798414590764, 0.8930054804637417,
+# ...
+# 0.0002802543913853538, 0.0002484335453140342, 0.0002511898892862956, 0.00025436858508787034,
+# 0.0002570346394084783, 0.0002597207485540567, 0.0002505948474338684, 0.0002664976805703939]
+
+# #Merging training results with input data
+# predictions = model.test(testInput=trainInputs, displayPredictions=displayTrain)
+# x = trainInputs[:, 0].reshape(samples, 1) #Convert array of shape (samples,) to matrix of shape (samples, 1)
+# y = trainInputs[:, 1].reshape(samples, 1)
+# xy       = np.concatenate((x, y), axis=1) #Concatenate by appending columns (left to right)
+# xyz      = np.concatenate((xy, predictions), axis=1).reshape(samples, 3)
+
+# unscaled = undoLinearScaling(data=trainDF.to_numpy(), predictions=xyz)
+# #Save training results as csv
+# if saving:
+#     predsDF = pd.DataFrame(unscaled)
+#     predsDF = predsDF.rename(columns={0: "x", 1: "y", 2: "z_predicted"})
+#     pd.DataFrame.to_csv(predsDF, saveFilename, index=False)
+
+# print("Done")
