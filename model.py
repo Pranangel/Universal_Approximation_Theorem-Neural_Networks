@@ -1,183 +1,16 @@
 #Author: Pranangel
 #Purpose: Making the building blocks for a customizable artificial neural network.
 
-import numpy as np
 from numpy import ndarray
-from activations import *
-from losses import *
-# import random
+import numpy as np
+import math
+import activations
+import losses
 
 #NOTE: these are only for reproducibility in testing
 LAYER_RNG    = np.random.default_rng(seed=1)
 TRAINING_RNG = np.random.default_rng(seed=2)
 
-class ANN:
-    """
-    ANN initializes a multi layer perceptron. This model expects x,y pairs represented as numpy
-    matrices of shape (n, 2) and produces a z-value for each pair (matrix of shape (n, 1)). The
-    integer n represents the number of samples.
-    
-    Keyword arguments:
-    
-        - input_features (int): The number of columns in the training dataset used for
-        inputs (no actual values for loss). Default = 2
-        - batch_size (int): The number of samples to train on per each epoch. Default = 32
-        - output_features (list[int]): Represent the number of features/neurons per layer.
-        Default = [1, 1]
-        - activations (list[str]): Represent the activation used per layer.
-        Default = ["relu", "identity"]
-
-    Default architecture:
-
-        - 1st layer: 1 neuron with ReLU activation
-        - 2nd/output layer: 1 neuron with Identity activation
-    """
-
-    def __init__(self, **kwargs) -> None:        
-        numFeatures = 2
-        if (kwargs["input_features"] != None):
-            numFeatures = kwargs["input_features"]
-
-        batchSize = 32
-        if (kwargs["batch_size"] != None):
-            batchSize = kwargs["batch_size"]
-
-        #TODO: how should this behave if there is a discrepancy between list sizes, or if only one list is inputted?
-        numNeurons = [1, 1]
-        if (kwargs["output_features"] != None):
-            numNeurons = kwargs["output_features"]
-
-        activations = ["relu", "identity"]
-        if (kwargs["activations"] != None):
-            activations=kwargs["activations"]
-        
-        self.batchSize = batchSize
-
-        self.layers = []
-        self.__addLayers(numFeatures, numNeurons, activations)
-
-    #TODO: have users manually select num of output channels
-    #TODO: make this public and have it take only a Layer parameter. The argument gets appended to the list
-    def __addLayers(self, features: int, neuronsPerLayer: list[int], activationsPerLayer: list[str]) -> None:
-        if (len(neuronsPerLayer) == len(activationsPerLayer)):
-            n = 0
-            for l in range(len(neuronsPerLayer)):
-                if (len(self.layers) == 0 and l == 0): #If there are no layers, build starting w/ input
-                    n = features
-                else:
-                    _, n = self.layers[l - 1].getAOutputs().shape
-
-                self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=neuronsPerLayer[l], layerSize=1000, activationName=activationsPerLayer[l]))
-
-    def forwardPropagation(self, input: ndarray) -> ndarray:
-        i = 0
-        a = input
-
-        for i in range(len(self.layers)):
-            layer = self.layers[i]
-            a = layer.forward(a)
-
-        return a #Return the output of the final layer
-    
-    #TODO:
-    #   -enforce proper dimensionality of expected argument
-    def backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFunc: LossFunction):
-        self.__backPropagation(input, expected, learnRate, lossFunc)
-
-    def __backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFunc: LossFunction):
-        """Uses a rolling variable to track gradients. Every current layer updates the gradient,
-        and the layers higher up the chain will reuse this gradient, updating it for each
-        pass backwards towards the input layer.
-        """
-        start = len(self.layers)
-        predicted = self.layers[start - 1].getAOutputs()
-        #FIXME: Some loss functions may return a float instead of ndarray
-        dEdPredicted = lossFunc.getDeriv()(predicted, expected)
-        gradient = None
-        updates = []
-
-        for i in reversed(range(start)):
-            #Initializing the current layer, its stored un-activated p values, and activation derivative
-            layer = self.layers[i]
-            p = layer.getPOutputs()
-            actDeriv = layer.getActivationDeriv(p)
-
-            if (i == start - 1): #Initializing gradient; this happens once at the start of the loop.
-                gradient = np.multiply(dEdPredicted, actDeriv)
-            else: #Updating gradient; this happens every time after the above condition.
-                dPdAPrev = self.layers[i + 1].getWeights().T
-                dAPrevdPPrev = actDeriv
-                gradient = np.multiply(gradient @ dPdAPrev, dAPrevdPPrev) #(gradient @ dPdAPrev) * dAPrevdPPrev
-                
-            #Initializing current layer's a value. Note that the rolling gradient does NOT get updated with a
-            a = input.T
-            if (i != 0):
-                a = self.layers[i - 1].getAOutputs().T
-
-            #Storing weight and bias updates. If the weights and biases were updated in this loop, it would cause improper gradient updates for preceding layers.
-            dEdW = a @ gradient
-            dEdB = np.mean(gradient, axis=0, keepdims=True)
-            updates.append((dEdW, dEdB))
-        
-        for i in reversed(range(start)):
-            layer = self.layers[i]
-            dEdW, dEdB = updates[start - 1 - i]
-            layer.updateParameters(dEdW, dEdB, learnRate)
-
-    def __display(self, epoch: int, batchNum: int, predicted: ndarray, actual: ndarray):
-        """Prints training results: epoch, predicted, actual, residuals, and error."""
-        print(f"********************Epoch {epoch}, Batch {batchNum} Results********************")
-        print(f"Predicted: {predicted}")
-        print(f"Actual: {actual}")
-        print(f"Residuals: {predicted - actual}")
-
-    #FIXME: add logic to handle vectors
-    def train(self, input: ndarray, expected: ndarray, learnRate: float, epochs: int, lossFunc: LossFunction, displayOutputs = False) -> list:
-        """
-        Uses gradient descent as the optimizer. If self.batchSize == the number of samples,
-        this becomes stochastic gradient descent; otherwise, the optimizer is batch gradient
-        descent by default.
-        """
-
-        shuffledInput, shuffledExpected = self.__shuffle(input, expected)
-        samples, _ = shuffledInput.shape
-        losses = []
-        
-        for i in range(epochs):
-            for j in range(0, samples, self.batchSize):
-                inputBatch  = shuffledInput[j:j + self.batchSize] #TODO: Does numpy fill 0s for <32 features?
-                targetBatch = shuffledExpected[j:j + self.batchSize]
-
-                zHat = self.forwardPropagation(inputBatch)
-                self.backPropagation(input=inputBatch, expected=targetBatch, learnRate=learnRate, lossFunc=lossFunc)
-                losses.append(lossFunc.getFunc()(zHat, targetBatch))
-
-                if displayOutputs:
-                    self.__display(i + 1, round(j / self.batchSize) + 1, zHat, targetBatch)
-            #     break
-            # break
-
-            shuffledInput, shuffledExpected = self.__shuffle(shuffledInput, shuffledExpected)
-        
-        return losses
-    
-    def __shuffle(self, input: ndarray, expected: ndarray) -> tuple[ndarray, ndarray]:
-        data = np.concatenate((input, expected), axis=1)
-
-        samples, features = input.shape
-        _, outputFeatures = expected.shape
-
-        shuffled         = TRAINING_RNG.permutation(data)
-        shuffledInput    = shuffled[:, :features].reshape(samples, features)
-        shuffledExpected = shuffled[:, features:].reshape(samples, outputFeatures)
-
-        return shuffledInput, shuffledExpected
-
-    def test(self, testInput: ndarray) -> ndarray:
-        return self.forwardPropagation(testInput) 
-
-import math
-import activations
 class Layer:
     """
     A Layer transforms the data inputted to it with weights, biases, and an activation function.
@@ -201,7 +34,7 @@ class Layer:
 
     """
     index = 0 #Static variable to track the number of layers created, used for debugging purposes.
-    functionList = {
+    activationDict = {
         "sigmoid": activations.Sigmoid(),
         "relu": activations.ReLU(),
         "leaky_relu": activations.LeakyReLU(),
@@ -212,7 +45,7 @@ class Layer:
 
     #TODO: handle checking for valid shapes
     def __init__(self, numInputFeatures: int, numOutputFeatures: int, layerSize: int, activationName: str, initializerName=""):
-        self.activation = Layer.functionList[activationName]
+        self.activation = Layer.activationDict[activationName]
         self.weights = np.ones((numInputFeatures, numOutputFeatures))#LAYER_RNG.random((numInputFeatures, numOutputFeatures))
         self.biases  = np.zeros((1, numOutputFeatures))
         self.velocity =  {
@@ -287,14 +120,199 @@ class Layer:
     def getAOutputs(self) -> ndarray:
         return self.a
 
-def puffle(input: ndarray, expected: ndarray) -> tuple[ndarray, ndarray]:
-    data = np.concatenate((input, expected), axis=1)
 
-    samples, features = input.shape
-    _, outputFeatures = expected.shape
+class ANN:
+    """
+    ANN initializes a multi layer perceptron. This model expects x,y pairs represented as numpy
+    matrices of shape (n, 2) and produces a z-value for each pair (matrix of shape (n, 1)). The
+    integer n represents the number of samples.
+    
+    Keyword arguments:
+    
+        - input_features (int): The number of columns in the training dataset used for
+        inputs (no actual values for loss). Default = 2
+        - batch_size (int): The number of samples to train on per each epoch. Default = 32
+        - output_features (list[int]): Represent the number of features/neurons per layer.
+        Default = [1, 1]
+        - activations (list[str]): Represent the activation used per layer.
+        Default = ["relu", "identity"]
 
-    shuffled         = TRAINING_RNG.permutation(data)
-    shuffledInput    = shuffled[:, :features].reshape(samples, features)
-    shuffledExpected = shuffled[:, features:].reshape(samples, outputFeatures)
+    Default architecture:
 
-    return shuffledInput, shuffledExpected
+        - 1st layer: 1 neuron with ReLU activation
+        - 2nd/output layer: 1 neuron with Identity activation
+    """
+
+    lossDict = {
+        "squared_error":  losses.SquaredError(),
+        "mse":            losses.MeanSquaredError(),
+        "mse_per_sample": losses.PerSampleMSE(),
+        "mse_per_output": losses.PerOutputMSE(),
+        "mae":            losses.MeanAbsoluteError(),
+        "":               losses.MeanSquaredError(),
+        None:             losses.MeanSquaredError()
+    }
+
+    #a user can enter:
+        #1: features, batch size, & neurons and activations per layer
+        #2: neurons and activations per layer
+        #3: num features and batch size
+        #4: nothing
+    def __init__(self, inputFeatures: int, batchSize: int, preinitialize=False, **kwargs):
+        self.numInputFeatures = inputFeatures
+        self.batchSize        = batchSize
+        self.layers = []
+
+        if (preinitialize):
+            neuronsPerLayer = []
+            neuronsPerLayer: list[int]
+            activationsPerLayer = []
+            activationsPerLayer: list[str]
+
+            if (kwargs["output_features"] != None and
+                kwargs["activations"]     != None
+            ):
+                neuronsPerLayer     = kwargs["output_features"]
+                activationsPerLayer = kwargs["activations"]
+
+                self.__addLayers(neuronsPerLayer, activationsPerLayer)
+
+            elif (kwargs == None):
+                neuronsPerLayer = [1, 1]
+                activationsPerLayer = ["relu", "identity"]
+
+                self.__addLayers(neuronsPerLayer, activationsPerLayer)
+
+            else:
+                print("Error: bad init")
+
+            
+    def add(self, **kwargs):
+        # if (kwargs["layer"] != None): #FIXME: layer modularity depends on the number of input features, which breaks if a user tries to make a new layer
+        #     self.layers.append(kwargs["layer"])
+        if (kwargs["output_features"] != None and kwargs["activation"] != None):
+            n = self.numInputFeatures
+            if (len(self.layers) > 0):
+                _, n = self.layers[len(self.layers) - 1].getAOutputs().shape
+            self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=kwargs["output_features"], layerSize=1000, activationName=kwargs["activation"]))
+        # else:
+        #     return error
+
+    def __addLayers(self, neuronsPerLayer: list[int], activationsPerLayer: list[str]) -> None:
+        if (len(neuronsPerLayer) == len(activationsPerLayer)):
+            n = 0
+            for l in range(len(neuronsPerLayer)):
+                if (len(self.layers) == 0 and l == 0): #If there are no layers, build starting w/ input
+                    n = self.numInputFeatures
+                else:
+                    _, n = self.layers[l - 1].getAOutputs().shape
+
+                self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=neuronsPerLayer[l], layerSize=1000, activationName=activationsPerLayer[l]))
+
+    def forwardPropagation(self, input: ndarray) -> ndarray:
+        i = 0
+        a = input
+
+        for i in range(len(self.layers)):
+            layer = self.layers[i]
+            a = layer.forward(a)
+
+        return a #Return the output of the final layer
+    
+    #TODO:
+    #   -enforce proper dimensionality of expected argument
+    def backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFuncName: str):
+        self.__backPropagation(input, expected, learnRate, lossFuncName)
+
+    def __backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFuncName: str):
+        """Uses a rolling variable to track gradients. Every current layer updates the gradient,
+        and the layers higher up the chain will reuse this gradient, updating it for each
+        pass backwards towards the input layer.
+        """
+        lossFunc = self.lossDict[lossFuncName]
+        start = len(self.layers)
+        predicted = self.layers[start - 1].getAOutputs()
+        #FIXME: Some loss functions may return a float instead of ndarray
+        dEdPredicted = lossFunc.getDeriv(predicted, expected)
+        gradient = None
+        updates = []
+
+        for i in reversed(range(start)):
+            #Initializing the current layer, its stored un-activated p values, and activation derivative
+            layer = self.layers[i]
+            p = layer.getPOutputs()
+            actDeriv = layer.getActivationDeriv(p)
+
+            if (i == start - 1): #Initializing gradient; this happens once at the start of the loop.
+                gradient = np.multiply(dEdPredicted, actDeriv)
+            else: #Updating gradient; this happens every time after the above condition.
+                dPdAPrev = self.layers[i + 1].getWeights().T
+                dAPrevdPPrev = actDeriv
+                gradient = np.multiply(gradient @ dPdAPrev, dAPrevdPPrev) #(gradient @ dPdAPrev) * dAPrevdPPrev
+                
+            #Initializing current layer's a value. Note that the rolling gradient does NOT get updated with a
+            a = input.T
+            if (i != 0):
+                a = self.layers[i - 1].getAOutputs().T
+
+            #Storing weight and bias updates. If the weights and biases were updated in this loop, it would cause improper gradient updates for preceding layers.
+            dEdW = a @ gradient
+            dEdB = np.mean(gradient, axis=0, keepdims=True)
+            updates.append((dEdW, dEdB))
+        
+        for i in reversed(range(start)):
+            layer = self.layers[i]
+            dEdW, dEdB = updates[start - 1 - i]
+            layer.updateParameters(dEdW, dEdB, learnRate)
+
+    def __display(self, epoch: int, batchNum: int, predicted: ndarray, actual: ndarray):
+        """Prints training results: epoch, predicted, actual, residuals, and error."""
+        print(f"********************Epoch {epoch}, Batch {batchNum} Results********************")
+        print(f"Predicted: {predicted}")
+        print(f"Actual: {actual}")
+        print(f"Residuals: {predicted - actual}")
+        # print(f"Error: {self.getError()}\n")
+
+    #FIXME: add logic to handle vectors
+    def train(self, input: ndarray, expected: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False) -> list:
+        """
+        Uses gradient descent as the optimizer. If self.batchSize == the number of samples,
+        this becomes stochastic gradient descent; otherwise, the optimizer is batch gradient
+        descent by default.
+        """
+
+        shuffledInput, shuffledExpected = self.__shuffle(input, expected)
+        samples, _ = shuffledInput.shape
+        lossFunc = self.lossDict[lossFuncName]
+        losses = []
+        
+        for i in range(epochs):
+            for j in range(0, samples, self.batchSize):
+                inputBatch  = shuffledInput[j:j + self.batchSize] #TODO: Does numpy fill 0s for <32 features?
+                targetBatch = shuffledExpected[j:j + self.batchSize]
+
+                zHat = self.forwardPropagation(inputBatch)
+                self.backPropagation(input=inputBatch, expected=targetBatch, learnRate=learnRate, lossFuncName=lossFuncName)
+                losses.append(lossFunc.getLoss(zHat, targetBatch))
+
+                if displayOutputs:
+                    self.__display(i + 1, round(j / self.batchSize) + 1, zHat, targetBatch)
+
+            shuffledInput, shuffledExpected = self.__shuffle(shuffledInput, shuffledExpected)
+        
+        return losses
+    
+    def __shuffle(self, input: ndarray, expected: ndarray) -> tuple[ndarray, ndarray]:
+        data = np.concatenate((input, expected), axis=1)
+
+        samples, features = input.shape
+        _, outputFeatures = expected.shape
+
+        shuffled         = TRAINING_RNG.permutation(data)
+        shuffledInput    = shuffled[:, :features].reshape(samples, features)
+        shuffledExpected = shuffled[:, features:].reshape(samples, outputFeatures)
+
+        return shuffledInput, shuffledExpected
+
+    def test(self, testInput: ndarray) -> ndarray:
+        return self.forwardPropagation(testInput) 
