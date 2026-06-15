@@ -1,11 +1,10 @@
 #Author: Pranangel
-#Purpose: This module contains wrapper classes housing error functions and their methods.
+#Purpose: This module contains a wrapper class housing loss functions.
 
 import numpy as np
 from numpy import ndarray
-from abstract_function import Function
 
-class LossFunction(Function):
+class LossFunction():
     """
     Wrapper class for all losses. Currently supports:
 
@@ -17,38 +16,40 @@ class LossFunction(Function):
             -PerOutputMSE
         -MeanAbsoluteError
     """
-    pass
 
 class SquaredError(LossFunction):
     @staticmethod
-    def getFunc():
-        return squaredError
+    def getLoss(predicted: ndarray, actual: ndarray):
+        return SquaredError.__squaredError(predicted, actual)
 
     @staticmethod
-    def getDeriv():
-        return derivSquaredError
+    def getDeriv(predicted: ndarray, actual: ndarray):
+        return SquaredError.__deriv(predicted, actual)
 
-def squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
-    return (predicted - actual) ** 2
+    @staticmethod
+    def __squaredError(predicted: ndarray, actual: ndarray) -> ndarray:
+        return (predicted - actual) ** 2
 
-def derivSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
-    return 2 * (predicted - actual)
+    @staticmethod
+    def __deriv(predicted: ndarray, actual: ndarray) -> ndarray:
+        return 2 * (predicted - actual)
 
 class MeanSquaredError(LossFunction):
     @staticmethod
-    def getFunc():
-        return meanSquaredError
+    def getLoss(predicted: ndarray, actual: ndarray):
+        return MeanSquaredError.__mse(predicted, actual)
 
     @staticmethod
-    def getDeriv():
-        return derivMeanSquaredError
+    def getDeriv(predicted: ndarray, actual: ndarray):
+        return MeanSquaredError.__deriv(predicted, actual)
 
-#TODO: add per sample (row-wise), per output (column/neuron-wise)
-def meanSquaredError(predicted: ndarray, actual: ndarray): #TODO: outputs floating[Any]
-    return np.mean((predicted - actual) ** 2)
-    
-def derivMeanSquaredError(predicted: ndarray, actual: ndarray) -> ndarray:
-    return 2 * (predicted - actual) / predicted.size
+    @staticmethod
+    def __mse(predicted: ndarray, actual: ndarray): #Outputs floating[Any]
+        return np.mean((predicted - actual) ** 2)
+        
+    @staticmethod
+    def __deriv(predicted: ndarray, actual: ndarray) -> ndarray:
+        return 2 * (predicted - actual) / predicted.size
 
 class PerOutputMSE(LossFunction):
     """
@@ -57,19 +58,21 @@ class PerOutputMSE(LossFunction):
     """
 
     @staticmethod
-    def getFunc():
-        return perOutputMSE
+    def getLoss(predicted: ndarray, actual: ndarray):
+        return PerOutputMSE.__perOutputMSE(predicted, actual)
 
     @staticmethod
-    def getDeriv():
-        return derivPerOutputMSE
+    def getDeriv(predicted: ndarray, actual: ndarray):
+        return PerOutputMSE.__deriv(predicted, actual)
 
-def perOutputMSE(predicted: ndarray, actual: ndarray): #TODO: outputs floating[Any]
-    return np.mean((predicted - actual) ** 2, axis=0)
-    
-def derivPerOutputMSE(predicted: ndarray, actual: ndarray) -> ndarray:
-    samples, neurons = actual.shape
-    return 2 * (predicted - actual) / samples
+    @staticmethod
+    def __perOutputMSE(predicted: ndarray, actual: ndarray): #TODO: outputs floating[Any]
+        return np.mean((predicted - actual) ** 2, axis=0)
+        
+    @staticmethod
+    def __deriv(predicted: ndarray, actual: ndarray) -> ndarray:
+        samples, neurons = actual.shape
+        return 2 * (predicted - actual) / samples
 
 class PerSampleMSE(LossFunction):
     """
@@ -78,35 +81,39 @@ class PerSampleMSE(LossFunction):
     """
 
     @staticmethod
-    def getFunc():
-        return perSampleMSE
+    def getLoss(predicted: ndarray, actual: ndarray):
+        return PerSampleMSE.__perSampleMSE(predicted, actual)
 
     @staticmethod
-    def getDeriv():
-        return derivPerSampleMSE
+    def getDeriv(predicted: ndarray, actual: ndarray):
+        return PerSampleMSE.__deriv(predicted, actual)
 
-def perSampleMSE(predicted: ndarray, actual: ndarray): #TODO: outputs floating[Any]
-    return np.mean((predicted - actual) ** 2, axis=1)
-    
-def derivPerSampleMSE(predicted: ndarray, actual: ndarray) -> ndarray:
-    samples, neurons = actual.shape
-    return 2 * (predicted - actual) / neurons
+    @staticmethod
+    def __perSampleMSE(predicted: ndarray, actual: ndarray): #TODO: outputs floating[Any]
+        return np.mean((predicted - actual) ** 2, axis=1)
+        
+    @staticmethod
+    def __deriv(predicted: ndarray, actual: ndarray) -> ndarray:
+        samples, neurons = actual.shape
+        return 2 * (predicted - actual) / neurons
 
 class MeanAbsoluteError(LossFunction):
 
     @staticmethod
-    def getFunc():
-        return meanAbsError
+    def getLoss(predicted: ndarray, actual: ndarray):
+        return MeanAbsoluteError.__meanAbsError(predicted, actual)
 
     @staticmethod
-    def getDeriv():
-        return derivMeanAbsError
+    def getDeriv(predicted: ndarray, actual: ndarray):
+        return MeanAbsoluteError.__deriv(predicted, actual)
 
-def meanAbsError(predicted: ndarray, actual: ndarray):
-    return np.mean(np.abs(predicted - actual))
+    @staticmethod
+    def __meanAbsError(predicted: ndarray, actual: ndarray):
+        return np.mean(np.abs(predicted - actual))
 
-def derivMeanAbsError(predicted: ndarray, actual: ndarray):
-    return np.sign(predicted - actual) / predicted.size
+    @staticmethod
+    def __deriv(predicted: ndarray, actual: ndarray):
+        return np.sign(predicted - actual) / predicted.size
 
 #TODO
 # class BinaryCrossEntropy(ErrorFunction):
