@@ -1,5 +1,5 @@
 #Author: Pranangel
-#Purpose: Making the building blocks for a customizable artificial neural network.
+#Purpose: Has the building blocks for a customizable artificial neural network.
 
 from numpy import ndarray
 import numpy as np
@@ -19,7 +19,6 @@ class Layer:
 
         - numInputFeatures: Represents the number of columns of the inputted matrix. (Same as fan in.)
         - numOutputFeatures: Specifies the number of columns of the outputted matrix. (Same as fan out.)
-        - layerSize: Specifies the capacity of each layer.
         - activation: The ActivationFunction object that will be applied to the input.
 
     Instance variables:
@@ -44,37 +43,39 @@ class Layer:
     }
 
     #TODO: handle checking for valid shapes
-    def __init__(self, numInputFeatures: int, numOutputFeatures: int, layerSize: int, activationName: str, initializerName=""):
-        self.activation = Layer.activationDict[activationName]
-        self.weights = np.ones((numInputFeatures, numOutputFeatures))#LAYER_RNG.random((numInputFeatures, numOutputFeatures))
-        self.biases  = np.zeros((1, numOutputFeatures))
+    def __init__(self, numInputFeatures: int, numOutputFeatures: int, activationName: str, initializerName=""):
+        self.numInputFeatures  = numInputFeatures
+        self.numOutputFeatures = numOutputFeatures
+        self.activationName    = activationName
+        self.initializerName   = initializerName
+
+        self.activation = Layer.activationDict[self.activationName]
+        self.weights = np.ones((self.numInputFeatures, self.numOutputFeatures))#LAYER_RNG.random((numInputFeatures, numOutputFeatures))
+        self.biases  = np.zeros((1, self.numOutputFeatures))
         self.velocity =  {
             "weight_gradient": np.zeros(self.weights.shape),
             "bias_gradient": np.zeros(self.biases.shape)
         }
         
-        if (initializerName == "xavier_uniform" or activationName == "sigmoid"):
-            sd = math.sqrt(6.0 / (numInputFeatures + numOutputFeatures))
+        if (self.initializerName == "xavier_uniform" or self.activationName == "sigmoid"):
+            sd = math.sqrt(6.0 / (self.numInputFeatures + self.numOutputFeatures))
             self.weights *= sd
-        elif (initializerName == "xavier_normal"):
-            sd = math.sqrt(2.0 / (numInputFeatures + numOutputFeatures))
+        elif (self.initializerName == "xavier_normal"):
+            sd = math.sqrt(2.0 / (self.numInputFeatures + self.numOutputFeatures))
             self.weights *= sd
-        elif (initializerName == "he_uniform" or activationName == "relu"): #Generates negative values.
-            limit = math.sqrt(6.0 / numInputFeatures) #NOTE: Numpy uses a half-open range, so the distribution is uniform from [min, max).
-            self.weights = LAYER_RNG.uniform(low=-limit, high=limit, size=(numInputFeatures, numOutputFeatures))
-        elif (initializerName == "he_normal"): #Values close to 0 have higher likelihood.
-            sd = math.sqrt(2.0 / numOutputFeatures)
+        elif (self.initializerName == "he_uniform" or ("relu" in self.activationName)): #Generates negative values.
+            limit = math.sqrt(6.0 / self.numInputFeatures) #NOTE: Numpy uses a half-open range, so the distribution is uniform from [min, max).
+            self.weights = LAYER_RNG.uniform(low=-limit, high=limit, size=(self.numInputFeatures, self.numOutputFeatures))
+        elif (self.initializerName == "he_normal"): #Values close to 0 have higher likelihood.
+            sd = math.sqrt(2.0 / self.numOutputFeatures)
             self.weights *= sd
 
-        #TODO: add a layersize cap for massive datasets
-        self.p = np.zeros((layerSize, numOutputFeatures))
-        self.a = np.zeros((layerSize, numOutputFeatures))
+        self.p: ndarray
+        self.a: ndarray
 
         self.layerIndex = Layer.index
         Layer.index += 1
 
-    #TODO: how do I handle input's shape mismatching with initialized p and a matrices?
-    #TODO: display outputs in a logger class
     def forward(self, input: ndarray) -> ndarray:
         """
         Forward propagation algorithm: returns a numpy array of matrix multiplication 
@@ -83,10 +84,6 @@ class Layer:
         self.p = input @ self.weights + self.biases #matrix multiplication and addition
         self.a = self.activation.getFunc(self.p)
 
-        # print(f"Layer {self.layerIndex}:")
-        # print(f"\tProportion activated: {np.mean(self.p > 0) * 100}%")
-        # print(f"\tProportion negative weights: {np.mean(self.weights < 0) * 100}%")
-
         return self.a
 
     def updateParameters(self, dw: ndarray, db: ndarray, learnRate: int):
@@ -94,31 +91,39 @@ class Layer:
         Backward propagation to update weights and biases. Uses simple momentum optimization.
         """
 
-        if (not isinstance(self.activation, activations.Identity)):
-            momentum = 0.3
-            weightVelocity = (momentum * self.velocity["weight_gradient"]) + dw
-            biasVelocity   = (momentum * self.velocity["bias_gradient"]) + db
+        momentum = 0.01
+        weightVelocity = (momentum * self.velocity["weight_gradient"]) + dw
+        biasVelocity   = (momentum * self.velocity["bias_gradient"]) + db
 
-            self.weights = self.weights - (weightVelocity * learnRate)
-            self.biases  = self.biases - (biasVelocity * learnRate)
+        self.weights = self.weights - (weightVelocity * learnRate)
+        self.biases  = self.biases - (biasVelocity * learnRate)
 
-            self.velocity["weight_gradient"] = weightVelocity
-            self.velocity["bias_gradient"]   = biasVelocity
+        self.velocity["weight_gradient"] = weightVelocity
+        self.velocity["bias_gradient"]   = biasVelocity
 
-    def getActivationDeriv(self, input: ndarray):
-        return self.activation.getDeriv(input)
+    def resetParameters(self):
+        self.weights = np.ones(self.weights.shape)
+        self.biases  = np.zeros(self.biases.shape)
+        self.velocity =  {
+            "weight_gradient": np.zeros(self.weights.shape),
+            "bias_gradient": np.zeros(self.biases.shape)
+        }
 
-    def getWeights(self) -> ndarray:
-        return self.weights
-    
-    def getBiases(self) -> ndarray:
-        return self.biases
-    
-    def getPOutputs(self) -> ndarray:
-        return self.p
-    
-    def getAOutputs(self) -> ndarray:
-        return self.a
+        if (self.initializerName == "xavier_uniform" or self.activationName == "sigmoid"):
+            sd = math.sqrt(6.0 / (self.numInputFeatures + self.numOutputFeatures))
+            self.weights *= sd
+        elif (self.initializerName == "xavier_normal"):
+            sd = math.sqrt(2.0 / (self.numInputFeatures + self.numOutputFeatures))
+            self.weights *= sd
+        elif (self.initializerName == "he_uniform" or ("relu" in self.activationName)): #Generates negative values.
+            limit = math.sqrt(6.0 / self.numInputFeatures) #NOTE: Numpy uses a half-open range, so the distribution is uniform from [min, max).
+            self.weights = LAYER_RNG.uniform(low=-limit, high=limit, size=(self.numInputFeatures, self.numOutputFeatures))
+        elif (self.initializerName == "he_normal"): #Values close to 0 have higher likelihood.
+            sd = math.sqrt(2.0 / self.numOutputFeatures)
+            self.weights *= sd
+
+        self.p = np.zeros(self.p.shape)
+        self.a = np.zeros(self.a.shape)
 
 
 class ANN:
@@ -126,21 +131,27 @@ class ANN:
     ANN initializes a multi layer perceptron. This model expects x,y pairs represented as numpy
     matrices of shape (n, 2) and produces a z-value for each pair (matrix of shape (n, 1)). The
     integer n represents the number of samples.
+
     
-    Keyword arguments:
+    A user must initialize any ANN with the number of input features. If they choose to pre-
+    initialize, they have the option of specifying the output_features and activations kwargs
+    (see below), or no kwargs. If no kwargs are passed, a default model is constructued (see
+    below.)
     
-        - input_features (int): The number of columns in the training dataset used for
-        inputs (no actual values for loss). Default = 2
-        - batch_size (int): The number of samples to train on per each epoch. Default = 32
+    Keyword Arguments::
+    
         - output_features (list[int]): Represent the number of features/neurons per layer.
         Default = [1, 1]
         - activations (list[str]): Represent the activation used per layer.
         Default = ["relu", "identity"]
 
-    Default architecture:
+    Default Architecture::
 
-        - 1st layer: 1 neuron with ReLU activation
-        - 2nd/output layer: 1 neuron with Identity activation
+        - 1st layer: 100 neurons (fan out) with ReLU activation and uniform He weight init
+        - 2nd layer: 100 neurons (fan out) with ReLU activation and uniform He weight init
+        - 3rd layer: 1 neuron (fan out) with Identity activation
+
+    Note:: ANN only supports simple momentum optimization, which is used by default.
     """
 
     lossDict = {
@@ -153,14 +164,8 @@ class ANN:
         None:             losses.MeanSquaredError()
     }
 
-    #a user can enter:
-        #1: features, batch size, & neurons and activations per layer
-        #2: neurons and activations per layer
-        #3: num features and batch size
-        #4: nothing
-    def __init__(self, inputFeatures: int, batchSize: int, preinitialize=False, **kwargs):
+    def __init__(self, inputFeatures: int, preinitialize=False, **kwargs):
         self.numInputFeatures = inputFeatures
-        self.batchSize        = batchSize
         self.layers = []
 
         if (preinitialize):
@@ -178,8 +183,8 @@ class ANN:
                 self.__addLayers(neuronsPerLayer, activationsPerLayer)
 
             elif (kwargs == None):
-                neuronsPerLayer = [1, 1]
-                activationsPerLayer = ["relu", "identity"]
+                neuronsPerLayer = [100, 100, 1]
+                activationsPerLayer = ["relu", "relu", "identity"]
 
                 self.__addLayers(neuronsPerLayer, activationsPerLayer)
 
@@ -188,26 +193,20 @@ class ANN:
 
             
     def add(self, **kwargs):
-        # if (kwargs["layer"] != None): #FIXME: layer modularity depends on the number of input features, which breaks if a user tries to make a new layer
-        #     self.layers.append(kwargs["layer"])
         if (kwargs["output_features"] != None and kwargs["activation"] != None):
             n = self.numInputFeatures
             if (len(self.layers) > 0):
-                _, n = self.layers[len(self.layers) - 1].getAOutputs().shape
-            self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=kwargs["output_features"], layerSize=1000, activationName=kwargs["activation"]))
-        # else:
-        #     return error
-
-    def __addLayers(self, neuronsPerLayer: list[int], activationsPerLayer: list[str]) -> None:
-        if (len(neuronsPerLayer) == len(activationsPerLayer)):
-            n = 0
-            for l in range(len(neuronsPerLayer)):
-                if (len(self.layers) == 0 and l == 0): #If there are no layers, build starting w/ input
-                    n = self.numInputFeatures
-                else:
-                    _, n = self.layers[l - 1].getAOutputs().shape
-
-                self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=neuronsPerLayer[l], layerSize=1000, activationName=activationsPerLayer[l]))
+                _, n = self.layers[len(self.layers) - 1].weights.shape
+            self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=kwargs["output_features"], activationName=kwargs["activation"]))
+        else:
+            if (kwargs["output_features"] == None and kwargs["activation"] == None):
+                print("Error: arg 'output_features' and arg 'activation' not supplied.")
+            elif (kwargs["output_features"] == None):
+                print("Error: arg 'output_features' not supplied.")
+            elif (kwargs["activation"] == None):
+                print("Error: arg 'activation' not supplied.")
+            else:
+                print("Error.")
 
     def forwardPropagation(self, input: ndarray) -> ndarray:
         i = 0
@@ -219,19 +218,69 @@ class ANN:
 
         return a #Return the output of the final layer
     
-    #TODO:
-    #   -enforce proper dimensionality of expected argument
     def backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFuncName: str):
         self.__backPropagation(input, expected, learnRate, lossFuncName)
 
+    #FIXME: add logic to handle vectors
+    def train(self, input: ndarray, expected: ndarray, learnRate: float, epochs: int, batchSize: int, lossFuncName: str, displayOutputs = False) -> list:
+        """
+        Uses mini-batch gradient descent as the default optimizer. If batchSize == 1, this becomes stochastic
+        gradient descent; if batchSize == samples, this becomes batch gradient descent.
+        """
+
+        shuffledInput, shuffledExpected = self.__shuffle(input, expected)
+        samples, _ = shuffledInput.shape
+        lossFunc = self.lossDict[lossFuncName]
+        avgLosses = []
+        
+        for i in range(epochs):
+            losses = []
+
+            for j in range(0, samples, batchSize):
+                inputBatch  = shuffledInput[j:j + batchSize]
+                targetBatch = shuffledExpected[j:j + batchSize]
+
+                zHat = self.forwardPropagation(inputBatch)
+                self.backPropagation(input=inputBatch, expected=targetBatch, learnRate=learnRate, lossFuncName=lossFuncName)
+                losses.append(lossFunc.getLoss(zHat, targetBatch))
+
+                if displayOutputs:
+                    self.__display(i + 1, (j // batchSize) + 1, zHat, targetBatch)
+
+            avgLosses.append(np.mean(losses))
+            shuffledInput, shuffledExpected = self.__shuffle(shuffledInput, shuffledExpected)
+        
+        return avgLosses
+
+    def test(self, testInput: ndarray) -> ndarray:
+        return self.forwardPropagation(testInput)
+
+    def resetParameters(self):
+        for layer in self.layers:
+            layer.resetParameters()
+    
+    def __addLayers(self, neuronsPerLayer: list[int], activationsPerLayer: list[str]):
+        if (len(neuronsPerLayer) == len(activationsPerLayer)):
+            n = 0
+            for l in range(len(neuronsPerLayer)):
+                if (len(self.layers) == 0 and l == 0): #If there are no layers, build starting w/ input
+                    n = self.numInputFeatures
+                else:
+                    _, n = self.layers[l - 1].weights.shape
+
+                self.layers.append(Layer(numInputFeatures=n, numOutputFeatures=neuronsPerLayer[l], activationName=activationsPerLayer[l]))
+        else:
+            print(f"Error: dimension mismatch in arg 1 ({len(neuronsPerLayer)}) and arg 2 ({len(activationsPerLayer)})")
+
     def __backPropagation(self, input: ndarray, expected: ndarray, learnRate: float, lossFuncName: str):
-        """Uses a rolling variable to track gradients. Every current layer updates the gradient,
+        """
+        Uses a rolling variable to track gradients. Every current layer updates the gradient,
         and the layers higher up the chain will reuse this gradient, updating it for each
         pass backwards towards the input layer.
         """
         lossFunc = self.lossDict[lossFuncName]
         start = len(self.layers)
-        predicted = self.layers[start - 1].getAOutputs()
+        predicted = self.layers[start - 1].a
         #FIXME: Some loss functions may return a float instead of ndarray
         dEdPredicted = lossFunc.getDeriv(predicted, expected)
         gradient = None
@@ -240,20 +289,20 @@ class ANN:
         for i in reversed(range(start)):
             #Initializing the current layer, its stored un-activated p values, and activation derivative
             layer = self.layers[i]
-            p = layer.getPOutputs()
-            actDeriv = layer.getActivationDeriv(p)
+            p = layer.p
+            actDeriv = layer.activation.getDeriv(p)
 
             if (i == start - 1): #Initializing gradient; this happens once at the start of the loop.
                 gradient = np.multiply(dEdPredicted, actDeriv)
             else: #Updating gradient; this happens every time after the above condition.
-                dPdAPrev = self.layers[i + 1].getWeights().T
+                dPdAPrev = self.layers[i + 1].weights.T
                 dAPrevdPPrev = actDeriv
                 gradient = np.multiply(gradient @ dPdAPrev, dAPrevdPPrev) #(gradient @ dPdAPrev) * dAPrevdPPrev
                 
             #Initializing current layer's a value. Note that the rolling gradient does NOT get updated with a
             a = input.T
             if (i != 0):
-                a = self.layers[i - 1].getAOutputs().T
+                a = self.layers[i - 1].a.T
 
             #Storing weight and bias updates. If the weights and biases were updated in this loop, it would cause improper gradient updates for preceding layers.
             dEdW = a @ gradient
@@ -271,37 +320,7 @@ class ANN:
         print(f"Predicted: {predicted}")
         print(f"Actual: {actual}")
         print(f"Residuals: {predicted - actual}")
-        # print(f"Error: {self.getError()}\n")
-
-    #FIXME: add logic to handle vectors
-    def train(self, input: ndarray, expected: ndarray, learnRate: float, epochs: int, lossFuncName: str, displayOutputs = False) -> list:
-        """
-        Uses gradient descent as the optimizer. If self.batchSize == the number of samples,
-        this becomes stochastic gradient descent; otherwise, the optimizer is batch gradient
-        descent by default.
-        """
-
-        shuffledInput, shuffledExpected = self.__shuffle(input, expected)
-        samples, _ = shuffledInput.shape
-        lossFunc = self.lossDict[lossFuncName]
-        losses = []
         
-        for i in range(epochs):
-            for j in range(0, samples, self.batchSize):
-                inputBatch  = shuffledInput[j:j + self.batchSize] #TODO: Does numpy fill 0s for <32 features?
-                targetBatch = shuffledExpected[j:j + self.batchSize]
-
-                zHat = self.forwardPropagation(inputBatch)
-                self.backPropagation(input=inputBatch, expected=targetBatch, learnRate=learnRate, lossFuncName=lossFuncName)
-                losses.append(lossFunc.getLoss(zHat, targetBatch))
-
-                if displayOutputs:
-                    self.__display(i + 1, round(j / self.batchSize) + 1, zHat, targetBatch)
-
-            shuffledInput, shuffledExpected = self.__shuffle(shuffledInput, shuffledExpected)
-        
-        return losses
-    
     def __shuffle(self, input: ndarray, expected: ndarray) -> tuple[ndarray, ndarray]:
         data = np.concatenate((input, expected), axis=1)
 
@@ -313,6 +332,3 @@ class ANN:
         shuffledExpected = shuffled[:, features:].reshape(samples, outputFeatures)
 
         return shuffledInput, shuffledExpected
-
-    def test(self, testInput: ndarray) -> ndarray:
-        return self.forwardPropagation(testInput) 
