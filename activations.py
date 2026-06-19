@@ -1,3 +1,7 @@
+#Types of ReLU: https://apxml.com/courses/introduction-to-deep-learning/chapter-2-activation-functions-architecture/relu-variants
+#GeLU specifically: https://medium.com/@shauryagoel/gelu-gaussian-error-linear-unit-4ec59fb2e47c
+#https://medium.com/analytics-vidhya/activation-functions-optimization-techniques-and-loss-functions-75a0eea0bc31
+
 #Author: Pranangel
 #Purpose: This module contains wrapper classes housing activation functions and their methods.
 
@@ -15,29 +19,12 @@ class ActivationFunction():
             -Leaky
         -Identity
     """
-    @staticmethod
-    def getFunc(input: ndarray):
-        return ActivationFunction.__identity(input)
-
-    @staticmethod
-    def getDeriv(input: ndarray):
-        return ActivationFunction.__deriv(input)
-
-    @staticmethod
-    def __identity(x: ndarray) -> ndarray:
-        scalar = 1.
-        return scalar * x
-
-    @staticmethod
-    def __deriv(x: ndarray) -> ndarray:
-        scalar = 1.
-        return scalar * np.ones(x.shape)
 
 class Sigmoid(ActivationFunction):
 
     @staticmethod
     def getFunc(input: ndarray):
-        return Sigmoid.__sigmoid(input)
+        return Sigmoid.__func(input)
     
     @staticmethod
     def getDeriv(input: ndarray):
@@ -45,7 +32,7 @@ class Sigmoid(ActivationFunction):
     
 
     @staticmethod
-    def __sigmoid(x: ndarray) -> ndarray:
+    def __func(x: ndarray) -> ndarray:
         """Takes a matrix as an argument and applies the sigmoid function to every value in the matrix.
         
         Algebraically, sigmoid is defined as 1 / (1 + exp(-z)). However, this implementation uses
@@ -73,20 +60,20 @@ class Sigmoid(ActivationFunction):
 
     @staticmethod
     def __deriv(x: ndarray) -> ndarray:
-        a = Sigmoid.__sigmoid(x)
+        a = Sigmoid.__func(x)
         return a * (1 - a)
 
 class ReLU(ActivationFunction):
     @staticmethod
     def getFunc(input: ndarray):
-        return ReLU.__relu(input)
+        return ReLU.__func(input)
     
     @staticmethod
     def getDeriv(input: ndarray):
         return ReLU.__deriv(input)
     
     @staticmethod
-    def __relu(x: ndarray) -> ndarray:
+    def __func(x: ndarray) -> ndarray:
         return np.maximum(0, x)
 
     @staticmethod
@@ -98,23 +85,24 @@ class ReLU(ActivationFunction):
         return result
 
 class LeakyReLU(ReLU):
-    """Note:: Uses a coefficient of 0.01 for negatives. Also extends ReLU."""
+    """Note:: Uses a coefficient of 0.003 for negatives. Also extends ReLU."""
+    scalar = 0.003
 
     @staticmethod
     def getFunc(input: ndarray):
-        return LeakyReLU.__leakyRelu(input)
+        return LeakyReLU.__func(input)
     
     @staticmethod
     def getDeriv(input: ndarray):
         return LeakyReLU.__deriv(input)
     
     @staticmethod
-    def __leakyRelu(x: ndarray) -> ndarray:
+    def __func(x: ndarray) -> ndarray:
         negativeMask = x < 0
         result = np.ones_like(a=x, shape=x.shape)
 
         result *= x
-        result[negativeMask] *= 0.01
+        result[negativeMask] *= LeakyReLU.scalar
 
         return result
 
@@ -123,7 +111,7 @@ class LeakyReLU(ReLU):
         negativeMask = x < 0
         result = np.ones_like(a=x, shape=x.shape)
 
-        result[negativeMask] *= 0.01
+        result[negativeMask] *= LeakyReLU.scalar
 
         return result
 
@@ -135,22 +123,29 @@ class Identity(ActivationFunction):
 
     @staticmethod
     def getFunc(input: ndarray):
-        return Identity.__identity(input)
+        return Identity.__func(input)
 
     @staticmethod
     def getDeriv(input: ndarray):
         return Identity.__deriv(input)
 
     @staticmethod
-    def __identity(x: ndarray) -> ndarray:
-        scalar = 1.
-        return scalar * x
+    def __func(x: ndarray) -> ndarray:
+        return x
 
     @staticmethod
     def __deriv(x: ndarray) -> ndarray:
-        scalar = 1.
-        return scalar * np.ones(x.shape)
+        return np.ones(x.shape)
 
 #TODO
 # class Softmax(ActivationFunction):
 #     pass
+
+ACTIVATIONS = {
+    "sigmoid": Sigmoid(),
+    "relu": ReLU(),
+    "leaky_relu": LeakyReLU(),
+    "identity": Identity(),
+    "": Identity(),
+    None: Identity()
+}
