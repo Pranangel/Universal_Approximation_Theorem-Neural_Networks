@@ -118,3 +118,12 @@ class MeanAbsoluteError(LossFunction):
 #TODO
 # class BinaryCrossEntropy(ErrorFunction):
 #     pass
+LOSSES = {
+    "squared_error":  SquaredError(),
+    "mse":            MeanSquaredError(),
+    "mse_per_sample": PerSampleMSE(),
+    "mse_per_output": PerOutputMSE(),
+    "mae":            MeanAbsoluteError(),
+    "":               MeanSquaredError(),
+    None:             MeanSquaredError()
+}
