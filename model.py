@@ -4,8 +4,9 @@
 from numpy import ndarray
 import numpy as np
 import math
-import activations
-import losses
+from initializers import INITIALIZERS
+from activations import ACTIVATIONS
+from losses import LOSSES
 
 #NOTE: these are only for reproducibility in testing
 LAYER_RNG    = np.random.default_rng(seed=1)
@@ -33,14 +34,6 @@ class Layer:
 
     """
     index = 0 #Static variable to track the number of layers created, used for debugging purposes.
-    activationDict = {
-        "sigmoid": activations.Sigmoid(),
-        "relu": activations.ReLU(),
-        "leaky_relu": activations.LeakyReLU(),
-        "identity": activations.Identity(),
-        "": activations.Identity(),
-        None: activations.Identity()
-    }
 
     #TODO: handle checking for valid shapes
     def __init__(self, numInputFeatures: int, numOutputFeatures: int, activationName: str, initializerName=""):
@@ -49,26 +42,22 @@ class Layer:
         self.activationName    = activationName
         self.initializerName   = initializerName
 
-        self.activation = Layer.activationDict[self.activationName]
-        self.weights = np.ones((self.numInputFeatures, self.numOutputFeatures))#LAYER_RNG.random((numInputFeatures, numOutputFeatures))
+        self.activation = ACTIVATIONS[self.activationName]
+        self.weights = np.ones((self.numInputFeatures, self.numOutputFeatures))
         self.biases  = np.zeros((1, self.numOutputFeatures))
         self.velocity =  {
             "weight_gradient": np.zeros(self.weights.shape),
             "bias_gradient": np.zeros(self.biases.shape)
         }
+
+        if (self.activationName == "sigmoid"):
+            self.weights = INITIALIZERS["xavier_uniform"].initialize(numInputFeatures, numOutputFeatures)
+
+        if ("relu" in self.activationName):
+            self.weights = INITIALIZERS["he_uniform"].initialize(numInputFeatures, numOutputFeatures, seed=2)
         
-        if (self.initializerName == "xavier_uniform" or self.activationName == "sigmoid"):
-            sd = math.sqrt(6.0 / (self.numInputFeatures + self.numOutputFeatures))
-            self.weights *= sd
-        elif (self.initializerName == "xavier_normal"):
-            sd = math.sqrt(2.0 / (self.numInputFeatures + self.numOutputFeatures))
-            self.weights *= sd
-        elif (self.initializerName == "he_uniform" or ("relu" in self.activationName)): #Generates negative values.
-            limit = math.sqrt(6.0 / self.numInputFeatures) #NOTE: Numpy uses a half-open range, so the distribution is uniform from [min, max).
-            self.weights = LAYER_RNG.uniform(low=-limit, high=limit, size=(self.numInputFeatures, self.numOutputFeatures))
-        elif (self.initializerName == "he_normal"): #Values close to 0 have higher likelihood.
-            sd = math.sqrt(2.0 / self.numOutputFeatures)
-            self.weights *= sd
+        if not (initializerName == "" or initializerName == '' or (initializerName is None)):
+            self.weights = INITIALIZERS[initializerName].initialize(numInputFeatures, numOutputFeatures)
 
         self.p: ndarray
         self.a: ndarray
@@ -109,18 +98,16 @@ class Layer:
             "bias_gradient": np.zeros(self.biases.shape)
         }
 
-        if (self.initializerName == "xavier_uniform" or self.activationName == "sigmoid"):
-            sd = math.sqrt(6.0 / (self.numInputFeatures + self.numOutputFeatures))
-            self.weights *= sd
-        elif (self.initializerName == "xavier_normal"):
-            sd = math.sqrt(2.0 / (self.numInputFeatures + self.numOutputFeatures))
-            self.weights *= sd
-        elif (self.initializerName == "he_uniform" or ("relu" in self.activationName)): #Generates negative values.
-            limit = math.sqrt(6.0 / self.numInputFeatures) #NOTE: Numpy uses a half-open range, so the distribution is uniform from [min, max).
-            self.weights = LAYER_RNG.uniform(low=-limit, high=limit, size=(self.numInputFeatures, self.numOutputFeatures))
-        elif (self.initializerName == "he_normal"): #Values close to 0 have higher likelihood.
-            sd = math.sqrt(2.0 / self.numOutputFeatures)
-            self.weights *= sd
+        fanIn, fanOut = self.weights.shape
+
+        if (self.activationName == "sigmoid"):
+            self.weights = INITIALIZERS["xavier_uniform"].initialize(fanIn, fanOut)
+
+        if ("relu" in self.activationName):
+            self.weights = INITIALIZERS["he_uniform"].initialize(fanIn, fanOut, seed=2)
+        
+        if not (self.initializerName == "" or self.initializerName == '' or (self.initializerName is None)):
+            self.weights = INITIALIZERS[self.initializerName].initialize(fanIn, fanOut)
 
         self.p = np.zeros(self.p.shape)
         self.a = np.zeros(self.a.shape)
@@ -153,16 +140,6 @@ class ANN:
 
     Note:: ANN only supports simple momentum optimization, which is used by default.
     """
-
-    lossDict = {
-        "squared_error":  losses.SquaredError(),
-        "mse":            losses.MeanSquaredError(),
-        "mse_per_sample": losses.PerSampleMSE(),
-        "mse_per_output": losses.PerOutputMSE(),
-        "mae":            losses.MeanAbsoluteError(),
-        "":               losses.MeanSquaredError(),
-        None:             losses.MeanSquaredError()
-    }
 
     def __init__(self, inputFeatures: int, preinitialize=False, **kwargs):
         self.numInputFeatures = inputFeatures
@@ -230,7 +207,7 @@ class ANN:
 
         shuffledInput, shuffledExpected = self.__shuffle(input, expected)
         samples, _ = shuffledInput.shape
-        lossFunc = self.lossDict[lossFuncName]
+        lossFunc = LOSSES[lossFuncName]
         avgLosses = []
         
         for i in range(epochs):
@@ -278,7 +255,7 @@ class ANN:
         and the layers higher up the chain will reuse this gradient, updating it for each
         pass backwards towards the input layer.
         """
-        lossFunc = self.lossDict[lossFuncName]
+        lossFunc = LOSSES[lossFuncName]
         start = len(self.layers)
         predicted = self.layers[start - 1].a
         #FIXME: Some loss functions may return a float instead of ndarray
@@ -320,6 +297,7 @@ class ANN:
         print(f"Predicted: {predicted}")
         print(f"Actual: {actual}")
         print(f"Residuals: {predicted - actual}")
+        # print(f"Error: {self.getError()}\n")
         
     def __shuffle(self, input: ndarray, expected: ndarray) -> tuple[ndarray, ndarray]:
         data = np.concatenate((input, expected), axis=1)
