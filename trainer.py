@@ -1,16 +1,27 @@
 #Author: Pranangel
-#Purpose: File to train model and save predictions. Logger not included.
+#Purpose: File to train model and save predictions.
 
+import time
 import pandas as pd
+from pandas.core.frame import DataFrame
 import numpy as np
 from numpy import ndarray
+import os
 
 from model import ANN
 from activations import *
 from losses import *
 
+def ingest(path: str):
+    dataDF = pd.read_csv(path)
 
-def linearScaling(data: pd.DataFrame) -> ndarray:
+    #Shuffling Pandas DataFrame and preparing training DataFrame
+    # rows, cols = dataDF.shape
+    shuffledDF = dataDF.sample(frac=1, random_state=1).reset_index(drop=True)
+
+    return shuffledDF
+
+def linearScaling(data: DataFrame) -> ndarray:
     """
     Normalizes in range [0, 1); formula taken from
     https://developers.google.com/machine-learning/crash-course/numerical-data/normalization
@@ -41,8 +52,9 @@ def linearScaling(data: pd.DataFrame) -> ndarray:
 def undoLinearScaling(data: ndarray, predictions: ndarray) -> ndarray:
     """
     Un-scales predictions from range [0, 1) to the minimum and maximum bounds of each column of the data.
-    This method expects two ndarrays of the same shape (samples, 3). Precision is limited to what numpy
-    defaults values to (float64)
+    This method expects two ndarrays of the same shape (samples, 3). Precision is limited numpy defaults
+    (float64). The data matrix is needed to extract minimums and maximums for each column, applied to the
+    predictions matrix to scale the predictions back to normal.
     """
     x = data[:, 0]
     y = data[:, 1]
@@ -64,74 +76,97 @@ def undoLinearScaling(data: ndarray, predictions: ndarray) -> ndarray:
 
     return out
 
-#Ingestion
-filename = "training_data.csv"
-dataDF = pd.read_csv(filename)
+def savePredictions(preds: ndarray, saveDst: str):
+    predsDF = pd.DataFrame(preds)
+    predsDF = predsDF.rename(columns={0: "x", 1: "y", 2: "z_predicted"})
+    pd.DataFrame.to_csv(predsDF, saveDst, index=False)
 
-#Shuffling Pandas DataFrame and preparing training DataFrame
-datasetSize = 10000
-samples     = datasetSize #Number of rows to extract for training
-shuffledDF = dataDF.sample(frac=1, random_state=1).reset_index(drop=True)
-trainDF    = shuffledDF[:samples]
+def runTests(tests: list, batchSize: int, dataDF: DataFrame, trainInputs: ndarray, trainOutputs: ndarray, predicting: bool, savePath=None):
+    i = 1
+    timeDiff = 0.0
+    for model, args, modelName in tests:
+        #Logging training time for each model
+        start = time.time()
+        losses = model.train(
+            input         =trainInputs,
+            expected      =trainOutputs,
+            batchSize     =batchSize,
+            learnRate     =args["learn_rate"],
+            epochs        =args["epochs"],
+            lossFuncName  =args["error"],
+            displayOutputs=False
+        )
+        end = time.time()
+        timeDiff = end - start
 
-#Scaling data
-scaledTrainData = linearScaling(trainDF)
-trainInputs  = scaledTrainData[:, [0, 1]]
-trainOutputs = scaledTrainData[:, 2].reshape(samples, 1)
+        #Printing losses and runtime
+        print(f"{modelName} Results:\nLosses:")
+        if (len(losses) >= 10):
+            end = len(losses) - 1
+            print(f"[{losses[0]}, {losses[1]}, {losses[2]}, {losses[3]}, {losses[4]}, ..., {losses[end - 4]}, {losses[end - 3]}, {losses[end - 2]}, {losses[end - 1]}, {losses[end]}]")
+        else:
+            print(losses)
+        print(f"Training runtime: {timeDiff} seconds")
 
-modelInitArgs = {
-    "input_features": 2,
-    "batch_size": samples,
-    "output_features": [100, 100, 1],
-    "activations": [ReLU(), ReLU(), Identity()],
-}
+        if (predicting):
+            print("Running model on prediction tasks:")
 
+            #Merging training results with input data
+            predictions = model.test(testInput=trainInputs, actual=trainOutputs, lossFuncName="mse")
+            concatPredictions = np.concatenate((trainInputs, predictions), axis=1).reshape(samples, 3)
+            unscaledPredictions = undoLinearScaling(data=dataDF.to_numpy(), predictions=concatPredictions)
+
+            print(f"Predicted: {predictions}")
+
+            if (savePath != None):
+                print("Saving results...")
+                
+                #Save training results as csv
+                savePredictions(unscaledPredictions, os.path.join(savePath, f"{modelName}_results.csv"))
+        i += 1
+
+    print("Done\n")
+
+files = [os.path.join(os.getcwd(), "data", "training_data_1.csv")]
+savePath = os.path.join(os.getcwd(), "training_results", "tests_6")
+
+#Setting initialization and training parameters
 trainingArgs = {
-    "learn_rate": 0.001,
-    "epochs": 1000, #This will take a few minutes...
-    "error": MeanSquaredError(),
+    "learn_rate": 0.01,
+    "epochs": 20,
+    "error": "mse",
 }
 
-displayTrain = False
+model1 = ANN(inputFeatures=2)
+model1.add(output_features=100, activation="leaky_relu")
+model1.add(output_features=100, activation="leaky_relu")
+model1.add(output_features=1, activation="identity")
+model1Name = "leaky_model"
 
-#Initializing ANN with args
-model = ANN(
-    input_features=modelInitArgs["input_features"],
-    batch_size=modelInitArgs["batch_size"],
-    output_features=modelInitArgs["output_features"],
-    activations=modelInitArgs["activations"]
-)
+model2 = ANN(inputFeatures=2)
+model2.add(output_features=100, activation="relu")
+model2.add(output_features=100, activation="relu")
+model2.add(output_features=1, activation="identity")
+model2Name = "standard_relu_model"
 
-#Training on normalized data with training args
-losses = model.train(
-    input=trainInputs,
-    expected=trainOutputs,
-    learnRate=trainingArgs["learn_rate"],
-    epochs=trainingArgs["epochs"],
-    lossFunc=trainingArgs["error"],
-    displayOutputs=displayTrain
-)
+tests = [(model1, trainingArgs, model1Name), (model2, trainingArgs, model2Name)]
 
-print(losses)
-#Output:
-#[444.82411016635035, 18.79291585742752, 7.782951097453164, 4.1175494653478175,
-# 2.4689846131450217, 1.6601361979866782, 1.181798414590764, 0.8930054804637417,
-# ...
-# 0.0002802543913853538, 0.0002484335453140342, 0.0002511898892862956, 0.00025436858508787034,
-# 0.0002570346394084783, 0.0002597207485540567, 0.0002505948474338684, 0.0002664976805703939]
+for file in files:
+    #Ingestion
+    shuffledDF = ingest(file)
 
-# #Merging training results with input data
-# predictions = model.test(testInput=trainInputs, displayPredictions=displayTrain)
-# x = trainInputs[:, 0].reshape(samples, 1) #Convert array of shape (samples,) to matrix of shape (samples, 1)
-# y = trainInputs[:, 1].reshape(samples, 1)
-# xy       = np.concatenate((x, y), axis=1) #Concatenate by appending columns (left to right)
-# xyz      = np.concatenate((xy, predictions), axis=1).reshape(samples, 3)
+    #Scaling data
+    inputFeatures = 2
+    data = linearScaling(shuffledDF)
+    samples, features = data.shape
+    trainInputs  = data[:, :inputFeatures].reshape(samples, inputFeatures)
+    trainOutputs = data[:, inputFeatures:].reshape(samples, features - inputFeatures)
 
-# unscaled = undoLinearScaling(data=trainDF.to_numpy(), predictions=xyz)
-# #Save training results as csv
-# if saving:
-#     predsDF = pd.DataFrame(unscaled)
-#     predsDF = predsDF.rename(columns={0: "x", 1: "y", 2: "z_predicted"})
-#     pd.DataFrame.to_csv(predsDF, saveFilename, index=False)
-
-# print("Done")
+    runTests(tests=tests,
+             batchSize=10,
+             dataDF=shuffledDF,
+             trainInputs=trainInputs,
+             trainOutputs=trainOutputs,
+             predicting=False, #Set me to True if you want to save results
+             savePath=savePath
+    )
