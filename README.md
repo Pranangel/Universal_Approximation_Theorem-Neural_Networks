@@ -2,32 +2,55 @@
 This is the honors project I completed for my Calculus III class, meant to study the applications of neural networks as universal approximators. (Really, it was more of a deep dive into machine learning by studying the intersection of computer science and math. Thanks, Professor Killebrew! :smile:)
 
 # Research & Development Process
-TODO
+1. Basic literature review of activations, forward and backward propagation
+2. Developed and wrote 2-layer architecture
+3. Tested forward propagation implementation
+4. Modularized layers in a Layer class
+5. Stored activations in a global dictionary
+6. Implemented backwards propagation manually (after a lot of debugging). Returned to literature to review terminology and assist with debugging.
+7. Modularized activations, losses, and initializers
 
 # Explanation of Modules
 - [model.py](model.py): The main driver behind the project. Class ANN keeps a dynamic array of Layer classes. This dynamic array acts as a flow graph for forward and backward propagation.
 - [activations.py](activations.py): Houses all activation functions (with derivatives), used in model.py
 - [initializers.py](initializers.py): Houses all functions for weight initialization, used in model.py
 - [losses.py](losses.py): Houses all loss functions (with derivatives) for back propagation. Used in model.py.
-- [data_generator.py](data_generator.py): The file I used to generate the different datasets.
+- [data_generator.py](data_generator.py): Generates datasets from parametric functions.
 - [trainer.py](trainer.py): The main file I ran tests on.
 
 # Notation
 TODO
 
+# Testing Methodology
+I compared my implementation with Keras's Sequential model, measuring training runtimes and loss (mean squared error) on the Gaussian function $e^{-({x^2}+{y^2})}$. The models had the same parameters and architecture (see below). In a seperate test, I kept the parameters and architecture the same but replaced the activations with Leaky ReLU to compare how they performed with their ReLU counterparts. To visualize, I tested the models on the same data after training.
+
+Model Training Parameters (custom and Keras):
+- 20 epochs
+- Batch size = 10
+- Learn rate = 0.01
+- Uniform He weight initialization
+- Bias 0 initialization
+- Mean squared error per sample loss
+- Mini-batch gradient descent with momentum optimization (constant of 0.01)
+
+Model Architecture (custom and Keras):
+- 1st Layer: 100 neuron (fan out) with ReLU
+- 2nd Layer: 100 neuron (fan out) with ReLU
+- Output Layer: 1 neuron (fan out) linear
+
 # Results
 |   | My Model | Keras |
 | ------------- | ------------- | ------------- |
-| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/8801eb4d-eb69-4116-b81d-d2a7d6687e3e" />  | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/922e8162-d327-4435-9c73-be0c362229f4" />  |
-| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/6eb8f9dc-e75f-4638-ab84-e1602ee58fbc" />  | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/c9398899-9942-4cc7-8308-e8e747d6853a" />  |
+| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/8801eb4d-eb69-4116-b81d-d2a7d6687e3e" /> Epoch 1 Loss: 0.04635847223715623<br>Epoch 20 loss: 0.0008274814189021644<br>Training time: 4.922151565551758 seconds | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/922e8162-d327-4435-9c73-be0c362229f4" /> Epoch 1 Loss: 0.0560<br>Epoch 20 Loss: 0.0022<br>Training time: 24.603302240371704 seconds |
+| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/6eb8f9dc-e75f-4638-ab84-e1602ee58fbc" /> Epoch 1 Loss: 0.049720800754544645<br>Epoch 20 loss: 0.00427488328512963<br>Training time: 5.820997953414917 seconds | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/c9398899-9942-4cc7-8308-e8e747d6853a" /> Epoch 1 Loss: 0.0593<br>Epoch 20 Loss: 0.0025<br>Training time: 25.0168936252594 seconds |
 
-|   | My Model | Keras |
-| ------------- | ------------- | ------------- |
-| Normal ReLU | Losses:<br>            Epoch 1 loss: 0.04635847223715623<br>            Epoch 2 loss: 0.04891181371370918<br>            Epoch 3 loss: 0.03861698339864526<br>            Epoch 4 loss: 0.038977279888423005<br>            Epoch 5 loss: 0.031671789231430464<br>            Epoch 6 loss: 0.025762606754207683<br>            Epoch 7 loss: 0.0200249549782506<br>            Epoch 8 loss: 0.01332117252193612<br>            Epoch 9 loss: 0.009762597325316685<br>            Epoch 10 loss: 0.007023157656184429<br>            Epoch 11 loss: 0.005599564502543038<br>            Epoch 12 loss: 0.0040836291980157965<br>            Epoch 13 loss: 0.002972211452267811<br>            Epoch 14 loss: 0.002109466431370519<br>            Epoch 15 loss: 0.0017234371088092947<br>            Epoch 16 loss: 0.0018570234192072722<br>            Epoch 17 loss: 0.0012643577851260898<br>            Epoch 18 loss: 0.0013490159653559558<br>            Epoch 19 loss: 0.0009549657720854803<br>            Epoch 20 loss: 0.0008274814189021644<br>    Training runtime: 4.922151565551758 seconds<br><br>    Running model on prediction tasks:<br>    Loss (mse):<br>    0.0008274814189021644<br>    Predicted: [[ 0.01615242]<br>    [ 0.84552734]<br>    [ 0.75984536]<br>    ...<br>    [-0.03312694]<br>    [ 0.1237742 ]<br>    [ 0.05219162]]<br> | Epoch 1/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 2s 1ms/step - loss: 0.0560     <br>    Epoch 2/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0292  <br>    Epoch 3/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0114  <br>    Epoch 4/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0054  <br>    Epoch 5/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0042  <br>    Epoch 6/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0038  <br>    Epoch 7/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0035  <br>    Epoch 8/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0033  <br>    Epoch 9/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0031  <br>    Epoch 10/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0029  <br>    Epoch 11/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0028  <br>    Epoch 12/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0027  <br>    Epoch 13/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0026  <br>    Epoch 14/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0025  <br>    Epoch 15/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0025  <br>    Epoch 16/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0024  <br>    Epoch 17/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0024  <br>    Epoch 18/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0023      <br>    Epoch 19/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0023  <br>    Epoch 20/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0022   <br>    Training time: 24.603302240371704<br>    313/313 ━━━━━━━━━━━━━━━━━━━━ 0s 952us/step<br>    Predicted: [[ 0.00327955]<br>    [-0.00453025]<br>    [-0.01435049]<br>    ...<br>    [-0.21914142]<br>    [-0.23077554]<br>    [-0.24240935]]<br>    MSE: [8.2866791e-06 2.8446893e-05 2.4303497e-04 ... 4.8283953e-02 5.3293213e-02<br>    5.8569871e-02] |
-| Leaky ReLU | Losses:<br>            Epoch 1 loss: 0.049720800754544645<br>            Epoch 2 loss: 0.04725308313418381<br>            Epoch 3 loss: 0.035915124304019413<br>            Epoch 4 loss: 0.030884802696094484<br>            Epoch 5 loss: 0.026348812732670934<br>            Epoch 6 loss: 0.023244501400561998<br>            Epoch 7 loss: 0.01780270987305487<br>            Epoch 8 loss: 0.014848123533236997<br>            Epoch 9 loss: 0.010854301477593146<br>            Epoch 10 loss: 0.007275166428474162<br>            Epoch 11 loss: 0.005978022043960792<br>            Epoch 12 loss: 0.005548055175437521<br>            Epoch 13 loss: 0.006201948119091196<br>            Epoch 14 loss: 0.0033498107793179543<br>            Epoch 15 loss: 0.004261576949125426<br>            Epoch 16 loss: 0.002979142471605827<br>            Epoch 17 loss: 0.0029009374811188237<br>            Epoch 18 loss: 0.002515063342533074<br>            Epoch 19 loss: 0.0024005574058711993<br>            Epoch 20 loss: 0.00427488328512963<br>    Training runtime: 5.820997953414917 seconds<br><br>    Running model on prediction tasks:<br>    Loss (mse):<br>    0.00427488328512963<br>    Predicted: [[-0.07399463]<br>    [ 0.78875066]<br>    [ 0.70014508]<br>    ...<br>    [-0.03151708]<br>    [ 0.03720864]<br>    [ 0.06006883]]<br> | Epoch 1/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 2s 1ms/step - loss: 0.0593     <br>    Epoch 2/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0441  <br>    Epoch 3/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0314  <br>    Epoch 4/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0177  <br>    Epoch 5/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0089  <br>    Epoch 6/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0053  <br>    Epoch 7/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0043  <br>    Epoch 8/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0038  <br>    Epoch 9/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0036    <br>    Epoch 10/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0034  <br>    Epoch 11/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0032  <br>    Epoch 12/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0030   <br>    Epoch 13/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0029  <br>    Epoch 14/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0028  <br>    Epoch 15/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0027  <br>    Epoch 16/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0027  <br>    Epoch 17/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0026  <br>    Epoch 18/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 2s 1ms/step - loss: 0.0026        <br>    Epoch 19/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0025       <br>    Epoch 20/20<br>    1000/1000 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - loss: 0.0025      <br>    Training time: 25.0168936252594<br>    313/313 ━━━━━━━━━━━━━━━━━━━━ 0s 1ms/step  <br>    Predicted: [[-0.05368626]<br>    [-0.04276247]<br>    [-0.03794809]<br>    ...<br>    [-0.22578795]<br>    [-0.23673739]<br>    [-0.24828713]]<br>    MSE: [0.00290544 0.00188717 0.00152963 ... 0.05123932 0.05607222 0.06143994]<br> |
+# Discussion
+My custom model ran faster in both tests, likely because the only overhead was Numpy's operations being applied to the matrices. (In terms of scalability, however, my model does not support GPU optimization, nor does it handle out-of-memory datasets.) In the ReLU test, my model achieved a lower loss than the Keras model after the 20th epoch; however, in the Leaky ReLU test, Keras achieved a lower loss, possibly due to more favorable random initialization.
 
 # Challenges
-TODO
+- Backwards Propagation: I originally began with a 1-layer design and pivoted to a 2-layer after encountering issues with backpropagation. I did not understand the difference between a naive matrix product and matrix multiplication until I studied deeper. I fixed the algorithm to only apply matrix multiplication when taking the partial derivative of an activated output w.r.t. the un-activated output of a layer.
+- Data ingestion: When I began my 2-layer design, I was not accessing the correct columns of my data, causing my model to train on faulty data.
+- Model training: I had a critical error in shuffling during batch training causing the model to take the x and z columns as inputs instead of the x and y. Fixing this and adding momentum optimization dramatically improved results.
 
 # Future Improvements!
 - Add support for convolutional neural networks
