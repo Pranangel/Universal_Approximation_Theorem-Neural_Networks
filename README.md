@@ -16,10 +16,24 @@ This is the honors project I completed for my Calculus III class, meant to study
 - [initializers.py](initializers.py): Houses all functions for weight initialization, used in model.py
 - [losses.py](losses.py): Houses all loss functions (with derivatives) for back propagation. Used in model.py.
 - [data_generator.py](data_generator.py): Generates datasets from parametric functions.
-- [trainer.py](trainer.py): The main file I ran tests on.
+- [custom_model_tester.py](custom_model_tester.py) and [keras_model_tester.py](keras_model_tester.py): The files I ran tests on for my custom model and Keras, respectively.
 
-# Notation
-TODO
+# Architecture Planning
+The pictures below show the math-heavy side of what I originally planned for my model: 1 hidden Sigmoid layer and 1 Sigmoid output. This section includes notation, forward and backward propagation (including matrix dimension alignment), and a more faithful version of my current architecture, scaled from my initial designs.
+
+## Notation
+<img width="1610" height="916" alt="image" src="https://github.com/user-attachments/assets/c8acef6c-e3f0-40b3-bc49-b169578b5c99" />
+
+## Forward Propagation
+<img width="2084" height="702" alt="image" src="https://github.com/user-attachments/assets/63fd844c-addc-41e9-851e-2b3257a201fd" />
+
+## Backward Propagation
+<img width="1096" height="1376" alt="image" src="https://github.com/user-attachments/assets/653cf563-28d1-41e0-9d72-582f79357e95" />
+The top left directed graph is what I started with; then, below it, I sorted out the individual partials; then I pieced them together (the Math curly brace); and then I went into deeper detail, rearranging the math to match up loosely to code (Code curly brace). There are a lot of colors at play here, but the most important ones I want to highlight are the teal and dark purple partials. They essentially reflect a shared piece of the gradient that works its way towards the first hidden layer, which helped me implement the code version of back propagation. (The teal color is the output layer's gradient, the purple is the 1st hidden layer's gradient.)
+
+## And Scaling it a Little Further...
+<img width="1512" height="924" alt="image" src="https://github.com/user-attachments/assets/5e8382e7-b99a-4d21-87aa-34baba9270b1" />
+This is the design most similar to the architecture I used in my tests! The only difference is the output layer is a ReLU (notated by the R function), and there are a LOT more colors (again, to piece together how gradients worked up the graph in code).
 
 # Testing Methodology
 I compared my implementation with Keras's Sequential model, measuring training runtimes and loss (mean squared error) on the Gaussian function $e^{-({x^2}+{y^2})}$. The models had the same parameters and architecture (see below). In a seperate test, I kept the parameters and architecture the same but replaced the activations with Leaky ReLU to compare how they performed with their ReLU counterparts. To visualize, I tested the models on the same data after training.
@@ -41,8 +55,8 @@ Model Architecture (custom and Keras):
 # Results
 |   | My Model | Keras |
 | ------------- | ------------- | ------------- |
-| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/8801eb4d-eb69-4116-b81d-d2a7d6687e3e" /> Epoch 1 Loss: 0.04635847223715623<br>Epoch 20 loss: 0.0008274814189021644<br>Training time: 4.922151565551758 seconds | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/922e8162-d327-4435-9c73-be0c362229f4" /> Epoch 1 Loss: 0.0560<br>Epoch 20 Loss: 0.0022<br>Training time: 24.603302240371704 seconds |
-| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/6eb8f9dc-e75f-4638-ab84-e1602ee58fbc" /> Epoch 1 Loss: 0.049720800754544645<br>Epoch 20 loss: 0.00427488328512963<br>Training time: 5.820997953414917 seconds | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/c9398899-9942-4cc7-8308-e8e747d6853a" /> Epoch 1 Loss: 0.0593<br>Epoch 20 Loss: 0.0025<br>Training time: 25.0168936252594 seconds |
+| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/8801eb4d-eb69-4116-b81d-d2a7d6687e3e" /> Epoch 1 Loss: 0.0464<br>Epoch 20 loss: 0.0008<br>Training time: 4.9222 seconds | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/922e8162-d327-4435-9c73-be0c362229f4" /> Epoch 1 Loss: 0.0560<br>Epoch 20 Loss: 0.0022<br>Training time: 24.6033 seconds |
+| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/6eb8f9dc-e75f-4638-ab84-e1602ee58fbc" /> Epoch 1 Loss: 0.0497<br>Epoch 20 loss: 0.0043<br>Training time: 5.8210 seconds | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/c9398899-9942-4cc7-8308-e8e747d6853a" /> Epoch 1 Loss: 0.0593<br>Epoch 20 Loss: 0.0025<br>Training time: 25.0169 seconds |
 
 # Discussion
 My custom model ran faster in both tests, likely because the only overhead was Numpy's operations being applied to the matrices. (In terms of scalability, however, my model does not support GPU optimization, nor does it handle out-of-memory datasets.) In the ReLU test, my model achieved a lower loss than the Keras model after the 20th epoch; however, in the Leaky ReLU test, Keras achieved a lower loss, possibly due to more favorable random initialization.
