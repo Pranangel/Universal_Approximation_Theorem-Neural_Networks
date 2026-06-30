@@ -1,5 +1,5 @@
 # Overview
-This is the honors project I completed for my Calculus III class, meant to study the applications of neural networks as universal approximators. (Really, it was more of a deep dive into machine learning by studying the intersection of computer science and math. Thanks, Professor Killebrew! :smile:)
+This is the honors project I completed for my Calculus III class, meant to study the applications of neural networks as universal approximators. (Really, it was more of a deep dive into machine learning studying the intersection of computer science and math. Thanks, Professor Killebrew! :smile:)
 
 # Research & Development Process
 1. Basic literature review of activations, forward and backward propagation
@@ -16,13 +16,14 @@ This is the honors project I completed for my Calculus III class, meant to study
 - [initializers.py](initializers.py): Houses all functions for weight initialization, used in model.py
 - [losses.py](losses.py): Houses all loss functions (with derivatives) for back propagation. Used in model.py.
 - [data_generator.py](data_generator.py): Generates datasets from parametric functions.
-- [custom_model_tester.py](custom_model_tester.py) and [keras_model_tester.py](keras_model_tester.py): The files I ran tests on for my custom model and Keras, respectively.
+- [custom_model_tester.py](custom_model_tester.py) and [keras_model_tester.py](keras_model_tester.py): The files I ran tests on for my custom model and Keras, respectively. Both files will output a .csv file containing x, y, and z_predicted columns. These can be used in visualizer.py (see below).
+- [visualizer.py](visualizer.py): The file I used to generate visualizations. It uses the .csv files generated from the above tester files to produce a residual heatmap, predicted surface, actual surface, and a scatterplot comparing the predicted z-values to the actual z-values.
 
 # Architecture Planning
 The pictures below show the math-heavy side of what I originally planned for my model: 1 hidden Sigmoid layer and 1 Sigmoid output. This section includes notation, forward and backward propagation (including matrix dimension alignment), and a more faithful version of my current architecture, scaled from my initial designs.
 
 ## Notation
-<img width="1610" height="916" alt="image" src="https://github.com/user-attachments/assets/c8acef6c-e3f0-40b3-bc49-b169578b5c99" />
+<img width="1818" height="952" alt="image" src="https://github.com/user-attachments/assets/0476a5e2-9f43-4c8b-9f67-a5a6780aa347" />
 
 ## Forward Propagation
 <img width="2084" height="702" alt="image" src="https://github.com/user-attachments/assets/63fd844c-addc-41e9-851e-2b3257a201fd" />
@@ -36,9 +37,11 @@ The top left directed graph is what I started with; then, below it, I sorted out
 This is the design most similar to the architecture I used in my tests! The only difference is the output layer is a ReLU (notated by the R function), and there are a LOT more colors (again, to piece together how gradients worked up the graph in code).
 
 # Testing Methodology
-I compared my implementation with Keras's Sequential model, measuring training runtimes and loss (mean squared error) on the Gaussian function $e^{-({x^2}+{y^2})}$. The models had the same parameters and architecture (see below). In a seperate test, I kept the parameters and architecture the same but replaced the activations with Leaky ReLU to compare how they performed with their ReLU counterparts. To visualize, I tested the models on the same data after training.
+I compared my implementation with Keras's Sequential model, measuring training runtimes and loss (mean squared error) on the Gaussian function $f(x,y)$ = $exp(-{{(x^2 + y^2)} / \pi}$). The models had the same parameters and architecture (see below). In a seperate test, I kept the parameters and architecture the same but replaced the activations with Leaky ReLU to compare how they performed with their ReLU counterparts. To visualize, I tested the models on the same data after training.
 
-Model Training Parameters (custom and Keras):
+**_(Note: I chose a Leaky ReLU constant of 0.003 for my model; Keras uses 0.3 by default, which I did not change.)_**
+
+## Model Training Parameters (custom and Keras):
 - 20 epochs
 - Batch size = 10
 - Learn rate = 0.01
@@ -47,7 +50,7 @@ Model Training Parameters (custom and Keras):
 - Mean squared error per sample loss
 - Mini-batch gradient descent with momentum optimization (constant of 0.01)
 
-Model Architecture (custom and Keras):
+## Model Architecture (custom and Keras):
 - 1st Layer: 100 neuron (fan out) with ReLU
 - 2nd Layer: 100 neuron (fan out) with ReLU
 - Output Layer: 1 neuron (fan out) linear
@@ -55,11 +58,15 @@ Model Architecture (custom and Keras):
 # Results
 |   | My Model | Keras |
 | ------------- | ------------- | ------------- |
-| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/8801eb4d-eb69-4116-b81d-d2a7d6687e3e" /> Epoch 1 Loss: 0.0464<br>Epoch 20 loss: 0.0008<br>Training time: 4.9222 seconds | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/922e8162-d327-4435-9c73-be0c362229f4" /> Epoch 1 Loss: 0.0560<br>Epoch 20 Loss: 0.0022<br>Training time: 24.6033 seconds |
-| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/6eb8f9dc-e75f-4638-ab84-e1602ee58fbc" /> Epoch 1 Loss: 0.0497<br>Epoch 20 loss: 0.0043<br>Training time: 5.8210 seconds | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/c9398899-9942-4cc7-8308-e8e747d6853a" /> Epoch 1 Loss: 0.0593<br>Epoch 20 Loss: 0.0025<br>Training time: 25.0169 seconds |
+| Normal ReLU | <img width="1600" height="1000" alt="standard_relu_model Results" src="https://github.com/user-attachments/assets/49ef2502-ee2d-44cd-bbc9-2f89ba6727da" /> Epoch 1 Loss: 0.0464<br>Epoch 20 loss: 0.0008<br>Training time: 4.9222 seconds | <img width="1600" height="1000" alt="keras_standard_relu Results" src="https://github.com/user-attachments/assets/83d4b722-e67f-4147-9897-0c3cefbe194e" /> Epoch 1 Loss: 0.0560<br>Epoch 20 Loss: 0.0022<br>Training time: 24.6033 seconds |
+| Leaky ReLU | <img width="1600" height="1000" alt="leaky_model Results" src="https://github.com/user-attachments/assets/69783e85-a442-457a-8205-982e5054b56c" /> Epoch 1 Loss: 0.0497<br>Epoch 20 loss: 0.0043<br>Training time: 5.8210 seconds | <img width="1600" height="1000" alt="keras_leaky Results" src="https://github.com/user-attachments/assets/e4890057-b0de-42c9-80d6-bd3f28606487" /> Epoch 1 Loss: 0.0593<br>Epoch 20 Loss: 0.0025<br>Training time: 25.0169 seconds |
 
 # Discussion
-My custom model ran faster in both tests, likely because the only overhead was Numpy's operations being applied to the matrices. (In terms of scalability, however, my model does not support GPU optimization, nor does it handle out-of-memory datasets.) In the ReLU test, my model achieved a lower loss than the Keras model after the 20th epoch; however, in the Leaky ReLU test, Keras achieved a lower loss, possibly due to more favorable random initialization.
+My custom model ran faster in both tests, likely because the only overhead was Numpy's operations being applied to the matrices. (In terms of scalability, however, my model does not support GPU optimization, nor does it handle out-of-memory datasets.) In the ReLU test, my model achieved a lower loss than the Keras model after the 20th epoch; however, in the Leaky ReLU test, Keras achieved a lower loss, possibly due to Keras using a Leaky ReLU constant of 0.3 compared to my model's constant of 0.003. This means the Leaky ReLU gradients in Keras are greater by a magnitude of 100, speeding up gradient updates in the process.
+
+I was surprised to observe visually that Keras's predicted surface and error heatmap looked very similar for both the regular and Leaky ReLU models. **What's happening under the hood that causes Keras to produce similar results regardless of ReLU or Leaky ReLU?**
+
+I was just as surprised to find that my model using normal ReLU had a very close predicted surface to the actual (and a more neutral heatmap), which leads me to ask: **What is the key factor or factors causing my model's normal ReLU to outperform Keras's normal ReLU in terms of accuracy?**
 
 # Challenges
 - Backwards Propagation: I originally began with a 1-layer design and pivoted to a 2-layer after encountering issues with backpropagation. I did not understand the difference between a naive matrix product and matrix multiplication until I studied deeper. I fixed the algorithm to only apply matrix multiplication when taking the partial derivative of an activated output w.r.t. the un-activated output of a layer.
