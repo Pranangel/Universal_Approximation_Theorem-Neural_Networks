@@ -1,5 +1,5 @@
 # Overview
-This is the honors project I completed for my Calculus III class, meant to study the applications of neural networks as universal approximators. (Really, it was more of a deep dive into machine learning studying the intersection of computer science and math. Thanks, Professor Killebrew! :smile:)
+This is an honors project studying the applications of neural networks as universal approximators for my Calculus III class. I developed and trained a deep learning from scratch on a dataset of 10,000 points, comparing results to a Keras model with the same parameters and hyperparameters. I want to thank Professor Killebrew at Mesa Community College for supporting and learning with me! :smile:
 
 # Research & Development Process
 1. Basic literature review of activations, forward and backward propagation
