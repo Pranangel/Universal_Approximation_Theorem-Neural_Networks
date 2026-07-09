@@ -1,5 +1,5 @@
 # Overview
-This is an honors project studying the applications of neural networks as universal approximators for my Calculus III class. I developed and trained a deep learning from scratch on a dataset of 10,000 points, comparing results to a Keras model with the same parameters and hyperparameters. I want to thank Professor Killebrew at Mesa Community College for supporting and learning with me! :smile:
+This is an honors project studying the applications of neural networks as universal approximators for my Calculus III class. I developed and trained a deep learning from scratch on a dataset of 10,000 points, comparing results to a Keras model with the same parameters and hyperparameters. I want to thank Professor Killebrew at Mesa Community College for learning with, teaching, and supporting me! :smile:
 
 # Research & Development Process
 1. Basic literature review of activations, forward and backward propagation
@@ -7,10 +7,10 @@ This is an honors project studying the applications of neural networks as univer
 3. Tested forward propagation implementation
 4. Modularized layers in a Layer class
 5. Stored activations in a global dictionary
-6. Implemented backwards propagation manually (after a lot of debugging). Returned to literature to review terminology and assist with debugging.
+6. Implemented backwards propagation manually (after a lot of debugging); returned to literature to review terminology and assist with debugging
 7. Modularized activations, losses, and initializers
 
-# Explanation of Modules
+# Explanation of Modules and Files
 - [model.py](model.py): The main driver behind the project. Class ANN keeps a dynamic array of Layer classes. This dynamic array acts as a flow graph for forward and backward propagation.
 - [activations.py](activations.py): Houses all activation functions (with derivatives), used in model.py
 - [initializers.py](initializers.py): Houses all functions for weight initialization, used in model.py
@@ -18,6 +18,7 @@ This is an honors project studying the applications of neural networks as univer
 - [data_generator.py](data_generator.py): Generates datasets from parametric functions.
 - [custom_model_tester.py](custom_model_tester.py) and [keras_model_tester.py](keras_model_tester.py): The files I ran tests on for my custom model and Keras, respectively. Both files will output a .csv file containing x, y, and z_predicted columns. These can be used in visualizer.py (see below).
 - [visualizer.py](visualizer.py): The file I used to generate visualizations. It uses the .csv files generated from the above tester files to produce a residual heatmap, predicted surface, actual surface, and a scatterplot comparing the predicted z-values to the actual z-values.
+- [training_data.csv](training_data.csv) and [training_data_1.csv](training_data_1.csv): Files containing 10,000 points on the Gaussian function $f(x,y)$ = $exp(-{{(x^2 + y^2)} / \pi}$). Prof. Killebrew provided me with training_data.csv during my initial development, and I generated training_data_1.csv from data_generator.py. (Either file can be used, but note that training_data.csv is pre-shuffled.)
 
 # Architecture Planning
 The pictures below show the math-heavy side of what I originally planned for my model: 1 hidden Sigmoid layer and 1 Sigmoid output. This section includes notation, forward and backward propagation (including matrix dimension alignment), and a more faithful version of my current architecture, scaled from my initial designs.
